@@ -92,6 +92,25 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
+# En Railway el sistema de archivos del contenedor se borra en cada despliegue.
+# Si DATABASE_URL no llega, Django caeria al SQLite local y todo *pareceria*
+# funcionar: las migraciones corren, el servidor levanta, y los datos se pierden
+# al siguiente despliegue. Ese fallo silencioso es peor que no arrancar, asi que
+# aqui se exige la variable en vez de adivinar.
+if EN_RAILWAY and not env("DATABASE_URL", default=""):
+    from django.core.exceptions import ImproperlyConfigured
+
+    raise ImproperlyConfigured(
+        "Falta DATABASE_URL.\n"
+        "\n"
+        "Se detecto que esto corre en Railway, donde el disco del contenedor es\n"
+        "temporal. Sin DATABASE_URL el sistema usaria una base que se borra en\n"
+        "cada despliegue: los usuarios y las marcas desapareceran sin aviso.\n"
+        "\n"
+        "En el servicio web, Variables, agregue:\n"
+        "    DATABASE_URL = ${{MySQL.MYSQL_URL}}\n"
+    )
+
 DATABASES = {
     "default": env.db_url(
         "DATABASE_URL", default=f"sqlite:///{BASE_DIR / 'asistencia.sqlite3'}"

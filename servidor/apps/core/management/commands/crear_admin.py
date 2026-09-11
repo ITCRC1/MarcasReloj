@@ -34,6 +34,8 @@ class Command(BaseCommand):
         )
 
     def handle(self, *args, **opciones):
+        self._anunciar_la_base()
+
         usuario = opciones.get("usuario") or os.environ.get("ADMIN_INICIAL_USUARIO", "")
         clave = opciones.get("clave") or os.environ.get("ADMIN_INICIAL_CLAVE", "")
         correo = opciones.get("correo") or os.environ.get("ADMIN_INICIAL_CORREO", "")
@@ -64,4 +66,17 @@ class Command(BaseCommand):
         self.stdout.write(
             "Borre ADMIN_INICIAL_CLAVE de las variables cuando confirme que entra."
         )
+
+    def _anunciar_la_base(self):
+        """Deja en el log contra que base se esta trabajando.
+
+        Es la pregunta que aparece cada vez que algo no cuadra en el despliegue:
+        el servidor levanta bien pero los datos no estan donde se esperaba.
+        """
+        from django.db import connection
+
+        datos = connection.settings_dict
+        motor = datos["ENGINE"].rsplit(".", 1)[-1]
+        destino = f"{datos['HOST']}/{datos['NAME']}" if datos.get("HOST") else datos["NAME"]
+        self.stdout.write(f"Base de datos: {motor} -> {destino}")
 
