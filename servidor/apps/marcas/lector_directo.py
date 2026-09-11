@@ -21,6 +21,24 @@ COLUMNAS = [
 
 COLUMNA_FIRMA = "attendanceutctime"
 
+# SmartPSS no escribe siempre en la misma unidad: la instalacion del comedor
+# guarda AttendanceUtcTime en SEGUNDOS (1789183484) y la documentacion habla de
+# milisegundos. Leerlo en la unidad equivocada manda la marca a 1970, asi que se
+# normaliza a milisegundos dentro del propio SQL: asi el resto del sistema
+# siempre recibe milisegundos y no hay que consultar la unidad por aparte.
+# El corte esta en 10^12, que en segundos seria el ano 33658 y en milisegundos
+# el 2001: ninguna marca real cae cerca.
+UTC_EN_MS = (
+    "CASE WHEN AttendanceUtcTime > 1000000000000 "
+    "THEN AttendanceUtcTime ELSE AttendanceUtcTime * 1000 END"
+)
+
+# El SELECT devuelve la columna ya normalizada, con su mismo nombre.
+COLUMNAS_SELECT = [
+    f"{UTC_EN_MS} AS AttendanceUtcTime" if c == "AttendanceUtcTime" else c
+    for c in COLUMNAS
+]
+
 # base.tabla o solo tabla. Nada mas: el nombre va literal en el SQL.
 NOMBRE_VALIDO = re.compile(r"^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$")
 
@@ -88,12 +106,12 @@ def resumen_de(tabla: str) -> dict:
         muestra = []
         if total:
             cursor.execute(
-                f"SELECT MIN(AttendanceUtcTime), MAX(AttendanceUtcTime) FROM {nombre}"
+                f"SELECT MIN({UTC_EN_MS}), MAX({UTC_EN_MS}) FROM {nombre}"
             )
             rango = cursor.fetchone()
             cursor.execute(
-                f"SELECT {', '.join(COLUMNAS)}, AttendanceDateTime FROM {nombre} "
-                "ORDER BY AttendanceUtcTime DESC LIMIT 3"
+                f"SELECT {', '.join(COLUMNAS_SELECT)}, AttendanceDateTime FROM {nombre} "
+                f"ORDER BY {UTC_EN_MS} DESC LIMIT 3"
             )
             campos = [c[0] for c in cursor.description]
             muestra = [dict(zip(campos, f)) for f in cursor.fetchall()]
@@ -105,8 +123,8 @@ def leer_desde(tabla: str, utc_ms: int, limite: int) -> list[dict]:
     nombre = _entrecomillar(validar_nombre(tabla))
     with connection.cursor() as cursor:
         cursor.execute(
-            f"SELECT {', '.join(COLUMNAS)} FROM {nombre} "
-            "WHERE AttendanceUtcTime >= %s ORDER BY AttendanceUtcTime LIMIT %s",
+            f"SELECT {', '.join(COLUMNAS_SELECT)} FROM {nombre} "
+            f"WHERE {UTC_EN_MS} >= %s ORDER BY {UTC_EN_MS} LIMIT %s",
             [utc_ms, limite],
         )
         campos = [c[0] for c in cursor.description]

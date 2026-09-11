@@ -46,8 +46,15 @@ INSERT INTO {TABLA} (
 
 
 def escribir_marca(person_id: str, fecha: date, hora: time, **extra):
-    """Como escribiria SmartPSS: AttendanceDateTime es la hora local como epoch."""
+    """Como escribiria SmartPSS: AttendanceDateTime es la hora local como epoch.
+
+    La unidad de AttendanceUtcTime cambia segun la instalacion de SmartPSS: unas
+    escriben milisegundos y otras segundos. Por eso se puede elegir con
+    unidad="s", que es lo que manda el reloj del comedor.
+    """
     utc_ms = utc_ms_de(fecha, hora)
+    unidad = extra.get("unidad", "ms")
+    utc = utc_ms if unidad == "ms" else utc_ms // 1000
     with connection.cursor() as cursor:
         cursor.execute(INSERTAR, [
             person_id,
@@ -60,7 +67,7 @@ def escribir_marca(person_id: str, fecha: date, hora: time, **extra):
             "Reloj Entrada",
             "",
             extra.get("handler", ""),
-            utc_ms,
+            utc,
             "",
         ])
 
@@ -140,12 +147,43 @@ def test_un_person_id_sin_mapear_queda_sin_empleado(tabla_smartpss, maria):
 
 
 @pytest.mark.django_db
-def test_la_hora_sale_de_utc_ms(tabla_smartpss, maria):
-    escribir_marca("1024", LUNES, time(8, 0))
+@pytest.mark.parametrize("unidad", ["ms", "s"])
+def test_la_hora_sale_de_utc_ms(tabla_smartpss, maria, unidad):
+    """La hora debe salir igual escriba SmartPSS segundos o milisegundos.
+
+    El reloj del comedor escribe segundos. Leer ese valor como milisegundos
+    mandaba la marca a enero de 1970 y el dia nunca se calculaba.
+    """
+    escribir_marca("1024", LUNES, time(8, 0), unidad=unidad)
     call_command("leer_smartpss", tabla=TABLA, verbosity=0)
     marca = MarcaReloj.objects.get()
     assert marca.fecha_local == LUNES
     assert marca.hora_local.strftime("%H:%M") == "08:00"
+
+
+@pytest.mark.django_db
+def test_un_dia_completo_en_segundos_se_calcula_igual(tabla_smartpss, maria):
+    for hora in (time(8, 12), time(12, 0), time(13, 0), time(17, 0)):
+        escribir_marca("1024", LUNES, hora, unidad="s")
+
+    call_command("leer_smartpss", tabla=TABLA, verbosity=0)
+
+    resultado = ResultadoDiario.objects.get(empleado=maria, fecha=LUNES)
+    assert resultado.estado == "OK"
+    assert resultado.minutos_ordinarios == 468
+    assert resultado.minutos_tardia == 12
+
+
+@pytest.mark.django_db
+def test_la_marca_anterior_no_se_vuelve_a_traer_con_segundos(tabla_smartpss, maria):
+    """La marca de agua se guarda en milisegundos; la tabla esta en segundos."""
+    for hora in (time(8, 0), time(12, 0), time(13, 0), time(17, 0)):
+        escribir_marca("1024", LUNES, hora, unidad="s")
+
+    call_command("leer_smartpss", tabla=TABLA, verbosity=0)
+    call_command("leer_smartpss", tabla=TABLA, verbosity=0)
+
+    assert MarcaReloj.objects.count() == 4
 
 
 @pytest.mark.django_db
