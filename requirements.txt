@@ -1,9 +1,37 @@
-# El proyecto Django vive en servidor/, no en la raiz.
+# Dependencias del servidor. Esta es la lista de verdad.
 #
-# Este archivo existe para que los constructores automaticos (Railpack, Nixpacks,
-# Heroku) detecten que esto es un proyecto de Python cuando se despliega desde la
-# raiz del repositorio, sin tener que acordarse de configurar el "Root Directory".
+# Vive en la raiz y no en servidor/ porque los constructores automaticos
+# (Railpack, Nixpacks) copian este archivo solo, antes que el resto del
+# repositorio, para poder cachear la capa de dependencias. Un "-r servidor/..."
+# aqui falla, porque esa carpeta todavia no existe en la imagen.
 #
-# La lista de verdad esta en servidor/requirements.txt.
+# servidor/requirements.txt apunta a este, para quien siga las instrucciones
+# viejas.
+#
+# Los marcadores de plataforma hacen que pip instale lo que corresponde en cada
+# sistema: mysqlclient necesita compilador en Linux, y gunicorn no arranca en
+# Windows porque le falta el modulo fcntl.
 
--r servidor/requirements.txt
+django>=5.2,<5.3
+django-ninja
+django-simple-history
+django-environ
+
+# Driver de MySQL. En Windows mysqlclient trae rueda precompilada; en Linux se
+# usa PyMySQL, que es Python puro y se hace pasar por MySQLdb.
+# Ver servidor/config/__init__.py.
+mysqlclient; sys_platform == "win32"
+pymysql; sys_platform != "win32"
+
+# Servidor WSGI, uno por sistema.
+waitress; sys_platform == "win32"
+gunicorn; sys_platform != "win32"
+
+openpyxl             # exportacion a Excel
+xhtml2pdf            # exportacion a PDF, sin dependencias externas
+whitenoise           # archivos estaticos
+tzdata               # Windows no trae la base de zonas horarias de zoneinfo
+
+pytest
+pytest-django
+coverage
