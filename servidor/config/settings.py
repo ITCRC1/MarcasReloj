@@ -93,13 +93,77 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-# Railway nombra la variable distinto segun como se enlacen los servicios. Se
-# aceptan las tres para no depender de cual haya quedado.
+# Railway nombra la variable distinto segun como se enlacen los servicios, y
+# ademas ofrece las piezas sueltas (host, usuario, clave, base) como variables
+# separadas. Se acepta cualquiera de las formas para no depender de cual se haya
+# elegido en la interfaz.
 URL_DE_LA_BASE = (
     env("DATABASE_URL", default="")
     or env("MYSQL_URL", default="")
     or env("DATABASE_PUBLIC_URL", default="")
+    or env("MYSQL_PUBLIC_URL", default="")
 )
+
+
+def _url_desde_las_piezas() -> str:
+    """Arma la direccion cuando solo estan las variables sueltas del MySQL.
+
+    Railway las publica con dos nomenclaturas (MYSQLHOST y MYSQL_HOST), asi que
+    se prueban las dos. Si falta cualquiera de las cuatro, no se arma nada:
+    media conexion es peor que ninguna, porque falla mas tarde y peor.
+    """
+    def buscar(*nombres, defecto=""):
+        for nombre in nombres:
+            valor = env(nombre, default="")
+            if valor:
+                return valor
+        return defecto
+
+    host = buscar("MYSQLHOST", "MYSQL_HOST")
+    usuario = buscar("MYSQLUSER", "MYSQL_USER")
+    clave = buscar("MYSQLPASSWORD", "MYSQL_PASSWORD", "MYSQL_ROOT_PASSWORD")
+    base = buscar("MYSQLDATABASE", "MYSQL_DATABASE")
+    puerto = buscar("MYSQLPORT", "MYSQL_PORT", defecto="3306")
+
+    if host and usuario and clave and base:
+        return f"mysql://{usuario}:{clave}@{host}:{puerto}/{base}"
+    return ""
+
+
+if not URL_DE_LA_BASE:
+    URL_DE_LA_BASE = _url_desde_las_piezas()
+
+
+def _pista_segun_lo_que_llego(nombres) -> str:
+    """Dice que hacer segun las variables que si estan, no solo que falta."""
+    urls = {"DATABASE_URL", "MYSQL_URL", "DATABASE_PUBLIC_URL", "MYSQL_PUBLIC_URL"}
+    sueltas = {
+        "MYSQLHOST", "MYSQL_HOST", "MYSQLUSER", "MYSQL_USER",
+        "MYSQLPASSWORD", "MYSQL_PASSWORD", "MYSQL_ROOT_PASSWORD",
+        "MYSQLDATABASE", "MYSQL_DATABASE", "MYSQLPORT", "MYSQL_PORT",
+    }
+    presentes_url = sorted(urls & set(nombres))
+    presentes_sueltas = sorted(sueltas & set(nombres))
+
+    if presentes_url:
+        return (
+            f"Esta {', '.join(presentes_url)}, pero llego vacia. Es lo que pasa\n"
+            "con ${{MySQL.MYSQL_URL}} cuando el servicio no se llama exactamente\n"
+            "MySQL: la referencia no resuelve y el valor queda en blanco.\n"
+        )
+    if presentes_sueltas:
+        return (
+            f"Llegaron algunas piezas del MySQL ({', '.join(presentes_sueltas)}),\n"
+            "pero no alcanzan para armar la conexion: hacen falta host, usuario,\n"
+            "clave y base, las cuatro.\n"
+            "\n"
+            "MYSQL_DATABASE por si sola es solo el NOMBRE de la base, no la\n"
+            "direccion para conectarse.\n"
+        )
+    return (
+        "No llego ninguna variable de base de datos. O no se guardo, o falto\n"
+        "pulsar 'Apply changes' en Railway despues de agregarla.\n"
+    )
 
 # En Railway el disco del contenedor se borra en cada despliegue. Sin una base
 # externa, Django caeria al SQLite local y todo *pareceria* funcionar: las
@@ -144,14 +208,16 @@ if EN_RAILWAY and not URL_DE_LA_BASE and _comando not in COMANDOS_SIN_BASE:
         + ("\n".join(f"    {n}" for n in propias) if propias else "    (ninguna)")
         + "\n"
         "\n"
-        "Si DATABASE_URL aparece en esa lista, llego vacia: es lo que pasa\n"
-        "cuando se usa ${{MySQL.MYSQL_URL}} y el servicio no se llama MySQL.\n"
-        "Si no aparece, no se guardo, o falto pulsar 'Apply changes' en Railway\n"
-        "despues de agregarla.\n"
+        + _pista_segun_lo_que_llego(propias)
+        + "\n"
+        "Lo que se necesita es la direccion COMPLETA, en el servicio web y no en\n"
+        "el de MySQL:\n"
         "\n"
-        "En el servicio web (no en el de MySQL), Variables, agregue DATABASE_URL\n"
-        "con la direccion literal de la base. Tambien sirve MYSQL_URL o\n"
-        "DATABASE_PUBLIC_URL.\n"
+        "    DATABASE_URL = mysql://usuario:clave@host:puerto/base\n"
+        "\n"
+        "Sirve igual con el nombre MYSQL_URL o DATABASE_PUBLIC_URL. Si prefiere\n"
+        "las piezas sueltas, tienen que estar las cuatro: MYSQLHOST, MYSQLUSER,\n"
+        "MYSQLPASSWORD y MYSQLDATABASE.\n"
     )
 
 DATABASES = {
