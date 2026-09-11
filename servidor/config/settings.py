@@ -270,6 +270,14 @@ SMARTPSS_VENTANA_HORAS = env.int("SMARTPSS_VENTANA_HORAS", default=48)
 # Desde cuando traer marcas la primera vez, si la base esta vacia.
 SMARTPSS_FECHA_INICIO = env("SMARTPSS_FECHA_INICIO", default="")
 
+# El servidor web trae las marcas solo, en un hilo aparte. Sin esto habria que
+# correr `manage.py leer_smartpss` a mano y en Railway eso no pasa nunca.
+# Apagarlo solo si se decide mover la lectura a un servicio o un cron propio.
+SMARTPSS_AUTO = env.bool("SMARTPSS_AUTO", default=True)
+
+# Cada cuanto revisa si SmartPSS escribio algo nuevo.
+SMARTPSS_INTERVALO_SEG = env.int("SMARTPSS_INTERVALO_SEG", default=60)
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,

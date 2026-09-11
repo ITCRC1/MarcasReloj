@@ -35,6 +35,21 @@
   </div>
 </div>
 
+{% if not tabla_smartpss %}
+<div class="alert alert-danger">
+  <strong>No esta configurada la tabla de SmartPSS.</strong>
+  El sistema no va a importar ninguna marca hasta que se defina la variable
+  <code>SMARTPSS_TABLA</code>. Para averiguar el nombre:
+  <code>manage.py leer_smartpss --explorar</code>.
+</div>
+{% elif sin_importar %}
+<div class="alert alert-warning">
+  <strong>{{ sin_importar }} marca(s) escritas por SmartPSS sin importar.</strong>
+  El reloj esta marcando pero el sistema no las esta trayendo. Revise en la
+  bitacora del servicio si el lector automatico esta corriendo.
+</div>
+{% endif %}
+
 {% if sin_mapear %}
 <div class="alert alert-danger">
   <strong>{{ sin_mapear|length }} empleado(s) activo(s) sin PersonID de SmartPSS.</strong>

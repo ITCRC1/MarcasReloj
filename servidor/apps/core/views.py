@@ -1,5 +1,6 @@
 from datetime import timedelta
 
+from django.conf import settings
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.db.models import Count, Q
@@ -8,6 +9,7 @@ from django.utils import timezone
 
 from apps.core.forms import EmpleadoForm, MapeoForm
 from apps.core.models import Empleado
+from apps.marcas import importador
 from apps.marcas.models import MarcaReloj
 from apps.marcas.servicio import mapear_person_id, sugerencias_de_mapeo
 from apps.motor.models import ResultadoDiario
@@ -32,11 +34,17 @@ def tablero(request):
 
     ultima = MarcaReloj.objects.order_by("-fecha_hora").first()
 
+    # Si SmartPSS escribe y el sistema no importa, antes no se notaba: la
+    # pantalla se veia igual que un dia sin marcas. Este numero lo delata.
+    sin_importar = importador.pendientes(settings.SMARTPSS_TABLA)
+
     return render(
         request,
         "core/tablero.html",
         {
             "hoy": hoy,
+            "tabla_smartpss": settings.SMARTPSS_TABLA,
+            "sin_importar": sin_importar,
             "marcas_hoy": marcas_hoy[:25],
             "total_marcas_hoy": marcas_hoy.count(),
             "inconsistentes": revisar.filter(estado="INCONSISTENTE")[:20],

@@ -9,18 +9,13 @@ base, de la marca mas reciente que ya se importo, menos la ventana de relectura.
 """
 
 import time
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 
 from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
-from django.db.models import Max
 
 from apps.core.tiempo import CR
-from apps.marcas import lector_directo
-from apps.marcas.models import MarcaReloj
-from apps.marcas.servicio import ingestar
-
-LOTE_MAX = 2000
+from apps.marcas import importador, lector_directo
 
 
 class Command(BaseCommand):
@@ -70,8 +65,10 @@ class Command(BaseCommand):
     # ------------------------------------------------------------------ pasada
 
     def _una_pasada(self, tabla: str, desde: str | None) -> None:
-        marcas = lector_directo.leer_desde(tabla, self._marca_de_agua(desde), LOTE_MAX)
-        resultado = ingestar(marcas)
+        try:
+            resultado = importador.una_pasada(tabla, desde)
+        except importador.FechaInvalida as error:
+            raise CommandError(f"--desde {error}")
         momento = datetime.now(tz=CR).strftime("%H:%M:%S")
         mensaje = (
             f"{momento}  leidas {resultado['recibidas']}, "
@@ -81,29 +78,6 @@ class Command(BaseCommand):
         )
         estilo = self.style.SUCCESS if resultado["nuevas"] else self.style.HTTP_INFO
         self.stdout.write(estilo(mensaje))
-
-    def _marca_de_agua(self, desde: str | None) -> int:
-        """Desde donde leer.
-
-        Se relee hacia atras porque SmartPSS puede escribir marcas con horas
-        pasadas cuando vuelve de estar cerrado. Los duplicados los descarta la
-        ingesta, asi que releer nunca hace dano.
-        """
-        if desde:
-            try:
-                dia = date.fromisoformat(desde)
-            except ValueError:
-                raise CommandError(f"--desde '{desde}' no es AAAA-MM-DD")
-            return int(datetime(dia.year, dia.month, dia.day, tzinfo=CR).timestamp() * 1000)
-
-        ultimo = MarcaReloj.objects.aggregate(tope=Max("utc_ms"))["tope"]
-        if ultimo is not None:
-            return ultimo - settings.SMARTPSS_VENTANA_HORAS * 3600 * 1000
-
-        if settings.SMARTPSS_FECHA_INICIO:
-            dia = date.fromisoformat(settings.SMARTPSS_FECHA_INICIO)
-            return int(datetime(dia.year, dia.month, dia.day, tzinfo=CR).timestamp() * 1000)
-        return 0
 
     # ---------------------------------------------------------------- explorar
 

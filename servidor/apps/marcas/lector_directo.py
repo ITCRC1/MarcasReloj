@@ -96,6 +96,14 @@ def tablas_candidatas() -> list[str]:
     return [t if b == actual else f"{b}.{t}" for b, t in filas]
 
 
+def total_de(tabla: str) -> int:
+    """Cuantas filas tiene la tabla de SmartPSS."""
+    nombre = _entrecomillar(validar_nombre(tabla))
+    with connection.cursor() as cursor:
+        cursor.execute(f"SELECT COUNT(*) FROM {nombre}")
+        return cursor.fetchone()[0]
+
+
 def resumen_de(tabla: str) -> dict:
     """Cuantas filas hay, desde cuando y las ultimas tres. Para el modo --explorar."""
     nombre = _entrecomillar(validar_nombre(tabla))
