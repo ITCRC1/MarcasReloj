@@ -3,7 +3,7 @@
 {% block contenido %}
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h1 class="h4 mb-0">Empleados</h1>
-  {% if es_rrhh %}<a class="btn btn-primary btn-sm" href="{% url 'core:empleado_nuevo' %}">Nuevo empleado</a>{% endif %}
+  <a class="btn btn-primary btn-sm" href="{% url 'core:empleado_nuevo' %}">Nuevo empleado</a>
 </div>
 
 <form class="row g-2 mb-3">
@@ -12,34 +12,35 @@
            placeholder="Nombre, codigo de planilla o PersonID">
   </div>
   <div class="col-auto"><button class="btn btn-sm btn-primary">Buscar</button></div>
-  <div class="col-auto">
-    <a class="btn btn-sm btn-outline-warning" href="?sin_mapear=1">Solo sin PersonID</a>
-  </div>
+  <div class="col-auto"><a class="btn btn-sm btn-outline-warning" href="?sin_mapear=1">Solo sin PersonID</a></div>
 </form>
 
 <div class="table-responsive">
   <table class="table table-sm table-striped tabla-compacta">
     <thead class="table-light"><tr>
-      <th>Codigo</th><th>Nombre</th><th>Departamento</th><th>PersonID</th><th>Ingreso</th><th>Estado</th><th></th>
+      <th>Codigo</th><th>Nombre</th><th>Departamento</th><th>PersonID</th><th>Horario</th><th>Estado</th><th></th>
     </tr></thead>
     <tbody>
     {% for e in empleados %}
       <tr>
         <td><code>{{ e.codigo_planilla }}</code></td>
         <td><a href="{% url 'core:empleado_detalle' e.pk %}">{{ e.nombre }}</a></td>
-        <td class="small">{{ e.departamento.nombre }}</td>
+        <td class="small">{{ e.departamento|default:"-" }}</td>
         <td>
           {% if e.person_id_smartpss %}<code>{{ e.person_id_smartpss }}</code>
           {% else %}<span class="badge bg-warning text-dark">sin mapear</span>{% endif %}
         </td>
-        <td class="small">{{ e.fecha_ingreso|date:"d/m/Y" }}</td>
+        <td class="small">
+          {% if e.horario %}{{ e.horario.nombre }}
+          {% else %}<span class="badge bg-danger">sin horario</span>{% endif %}
+        </td>
         <td>{% if e.activo %}<span class="badge bg-success">activo</span>{% else %}<span class="badge bg-secondary">inactivo</span>{% endif %}</td>
         <td class="text-end">
           <a class="btn btn-sm btn-outline-secondary" href="{% url 'marcas:dia_hoy' e.codigo_planilla %}">Dia de hoy</a>
         </td>
       </tr>
     {% empty %}
-      <tr><td colspan="7" class="text-muted">No hay empleados que coincidan.</td></tr>
+      <tr><td colspan="7" class="text-muted">No hay empleados. Cree el primero con "Nuevo empleado".</td></tr>
     {% endfor %}
     </tbody>
   </table>

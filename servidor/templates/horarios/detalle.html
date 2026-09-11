@@ -5,19 +5,10 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
   <div>
     <h1 class="h4 mb-0">{{ horario.nombre }}</h1>
-    <div class="text-muted">
-      Jornada {{ horario.get_tipo_jornada_display }} ·
-      semana {{ minutos_semanales|hm_cero }} de un limite de {{ limite|hm_cero }}
-    </div>
+    <div class="text-muted">Semana de {{ minutos_semanales|hm_cero }}</div>
   </div>
-  {% if es_rrhh %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'horarios:editar' horario.pk %}">Editar parametros</a>{% endif %}
+  <a class="btn btn-sm btn-outline-secondary" href="{% url 'horarios:editar' horario.pk %}">Editar parametros</a>
 </div>
-
-{% if excede %}
-<div class="alert alert-warning">
-  La suma semanal supera el limite de la jornada {{ horario.get_tipo_jornada_display }}. Es solo una advertencia; el sistema calcula igual.
-</div>
-{% endif %}
 
 <div class="row g-3">
   <div class="col-lg-7">
@@ -32,12 +23,10 @@
               {% for b in bloques %}
                 <span class="bloque-horario">
                   {{ b.hora_entrada|time:"H:i" }}–{{ b.hora_salida|time:"H:i" }}
-                  {% if es_rrhh %}
-                    <form method="post" action="{% url 'horarios:bloque_borrar' b.pk %}" class="d-inline">
-                      {% csrf_token %}
-                      <button class="btn btn-link btn-sm p-0 text-danger" title="Eliminar bloque">&times;</button>
-                    </form>
-                  {% endif %}
+                  <form method="post" action="{% url 'horarios:bloque_borrar' b.pk %}" class="d-inline">
+                    {% csrf_token %}
+                    <button class="btn btn-link btn-sm p-0 text-danger" title="Eliminar bloque">&times;</button>
+                  </form>
                 </span>
               {% empty %}
                 <span class="dia-libre">libre</span>
@@ -49,9 +38,21 @@
         </tbody>
       </table>
     </div>
+
+    {% if empleados %}
+    <div class="card mt-3">
+      <div class="card-header">Empleados con este horario</div>
+      <ul class="list-group list-group-flush small">
+        {% for e in empleados %}
+          <li class="list-group-item">
+            <a href="{% url 'core:empleado_detalle' e.pk %}">{{ e.codigo_planilla }} — {{ e.nombre }}</a>
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
   </div>
 
-  {% if es_rrhh %}
   <div class="col-lg-5">
     <div class="card">
       <div class="card-header">Agregar bloque</div>
@@ -63,12 +64,12 @@
         </form>
       </div>
       <div class="card-footer small text-muted">
-        Un dia admite dos bloques como maximo. El bloque 2 debe empezar despues de que
-        termina el bloque 1, y el intermedio debe superar la ventana de duplicados
-        ({{ horario.ventana_duplicado_min }} min). Un dia sin bloques es dia libre.
+        Un dia admite dos bloques como maximo; con dos es horario partido. El bloque 2
+        debe empezar despues de que termina el bloque 1, y el intermedio debe superar
+        la ventana de duplicados ({{ horario.ventana_duplicado_min }} min). Un dia sin
+        bloques es dia libre.
       </div>
     </div>
   </div>
-  {% endif %}
 </div>
 {% endblock %}

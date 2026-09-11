@@ -3,15 +3,9 @@
 {% block titulo %}Tablero{% endblock %}
 {% block contenido %}
 
-<div class="d-flex justify-content-between align-items-center mb-3">
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
   <h1 class="h4 mb-0">Tablero <small class="text-muted">{{ hoy|date:"l j \d\e F Y" }}</small></h1>
-  {% if periodo_actual %}
-    <a href="{% url 'periodos:detalle' periodo_actual.pk %}" class="btn btn-sm btn-outline-secondary">
-      Periodo actual: {{ periodo_actual.nombre }} ({{ periodo_actual.get_estado_display }})
-    </a>
-  {% else %}
-    <span class="badge bg-warning text-dark">Hoy no cae en ningun periodo</span>
-  {% endif %}
+  <a href="{% url 'reportes:reporte' %}" class="btn btn-primary btn-sm">Ver el reporte</a>
 </div>
 
 <div class="row g-3 mb-3">
@@ -22,125 +16,27 @@
     </div></div>
   </div>
   <div class="col-6 col-lg-3">
-    <div class="card h-100 {% if pendientes.inconsistentes %}border-danger{% endif %}"><div class="card-body">
-      <div class="tarjeta-numero text-danger">{{ pendientes.inconsistentes }}</div>
-      <div class="text-muted">dias inconsistentes</div>
-    </div></div>
-  </div>
-  <div class="col-6 col-lg-3">
-    <div class="card h-100 {% if pendientes.advertencias %}border-warning{% endif %}"><div class="card-body">
-      <div class="tarjeta-numero text-warning">{{ pendientes.advertencias }}</div>
-      <div class="text-muted">advertencias sin aceptar</div>
-    </div></div>
-  </div>
-  <div class="col-6 col-lg-3">
     <div class="card h-100"><div class="card-body">
-      <div class="tarjeta-numero">{{ pendientes.manuales }}</div>
-      <div class="text-muted">marcas manuales por aprobar</div>
+      <div class="tarjeta-numero">{{ empleados_activos }}</div>
+      <div class="text-muted">empleados activos</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card h-100 {% if total_inconsistentes %}border-danger{% endif %}"><div class="card-body">
+      <div class="tarjeta-numero text-danger">{{ total_inconsistentes }}</div>
+      <div class="text-muted">dias con marcas incompletas</div>
+    </div></div>
+  </div>
+  <div class="col-6 col-lg-3">
+    <div class="card h-100 {% if total_advertencias %}border-warning{% endif %}"><div class="card-body">
+      <div class="tarjeta-numero text-warning">{{ total_advertencias }}</div>
+      <div class="text-muted">dias con advertencia</div>
     </div></div>
   </div>
 </div>
-
-<div class="row g-3">
-  <div class="col-lg-5">
-    <div class="card h-100">
-      <div class="card-header">Agentes</div>
-      <div class="list-group list-group-flush">
-        {% for a in agentes %}
-        <div class="list-group-item d-flex justify-content-between align-items-center">
-          <div>
-            <strong>{{ a.sucursal.nombre }}</strong>
-            <div class="small text-muted">{{ a.sucursal.codigo_agente }}</div>
-          </div>
-          <div class="text-end">
-            {% if a.caido %}
-              <span class="badge bg-danger">sin sincronizar</span>
-            {% else %}
-              <span class="badge bg-success">al dia</span>
-            {% endif %}
-            <div class="small text-muted">
-              {% if a.ultima %}hace {{ a.minutos }} min{% else %}nunca{% endif %}
-            </div>
-          </div>
-        </div>
-        {% empty %}
-        <div class="list-group-item text-muted">No hay sucursales registradas.</div>
-        {% endfor %}
-      </div>
-      <div class="card-footer small text-muted">
-        Se marca en rojo si no sincroniza hace mas de {{ alerta_minutos }} minutos.
-      </div>
-    </div>
-  </div>
-
-  <div class="col-lg-7">
-    <div class="card h-100">
-      <div class="card-header d-flex justify-content-between">
-        <span>Marcas de hoy</span>
-        <a href="{% url 'marcas:crudas' %}" class="small">ver todas</a>
-      </div>
-      <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
-        <table class="table table-sm tabla-compacta mb-0">
-          <thead class="table-light"><tr>
-            <th>Hora</th><th>Empleado</th><th>Dispositivo</th><th>Metodo</th>
-          </tr></thead>
-          <tbody>
-          {% for m in marcas_hoy %}
-            <tr>
-              <td class="hora-marca">{{ m.fecha_hora|hora }}</td>
-              <td>
-                {% if m.empleado %}
-                  <a href="{% url 'marcas:dia' m.empleado.codigo_planilla m.fecha_local|date:'Y-m-d' %}">{{ m.empleado.nombre }}</a>
-                {% else %}
-                  <span class="text-danger">sin asignar</span>
-                  <span class="text-muted small">({{ m.person_id }} {{ m.person_name }})</span>
-                {% endif %}
-              </td>
-              <td class="small">{{ m.device_name|default:"-" }}</td>
-              <td class="small">{{ m.metodo_legible }}</td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="4" class="text-muted">Todavia no hay marcas hoy.</td></tr>
-          {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-</div>
-
-{% if despues_de_cierre %}
-<div class="card border-danger mt-3">
-  <div class="card-header bg-danger text-white">Marcas recibidas despues de un cierre</div>
-  <div class="card-body">
-    <p class="mb-2 small">
-      Estos dias ya se pagaron y no se recalculan. Si corresponde, registre un
-      <strong>ajuste</strong> en el periodo abierto.
-    </p>
-    {% for g in despues_de_cierre %}
-      <div class="mb-2">
-        <strong>{{ g.periodo.nombre }}</strong> — {{ g.total }} marca(s)
-        <a href="{% url 'periodos:detalle' g.periodo.pk %}" class="small">registrar ajuste</a>
-        <ul class="small mb-0">
-          {% for m in g.marcas %}
-            <li>{{ m.fecha_local }} {{ m.fecha_hora|hora }} — {{ m.empleado.nombre|default:m.person_id }}</li>
-          {% endfor %}
-        </ul>
-      </div>
-    {% endfor %}
-  </div>
-</div>
-{% endif %}
-
-{% if pendientes.sin_empleado %}
-<div class="alert alert-warning mt-3">
-  Hay <strong>{{ pendientes.sin_empleado }}</strong> marca(s) sin empleado asignado.
-  <a href="{% url 'marcas:pendientes' %}">Ver y mapear</a>.
-</div>
-{% endif %}
 
 {% if sin_mapear %}
-<div class="alert alert-danger mt-3">
+<div class="alert alert-danger">
   <strong>{{ sin_mapear|length }} empleado(s) activo(s) sin PersonID de SmartPSS.</strong>
   Nunca van a recibir marcas, asi que cada dia laboral les cuenta como ausencia.
   <ul class="mb-0 mt-1">
@@ -151,4 +47,87 @@
 </div>
 {% endif %}
 
+{% if total_sin_empleado %}
+<div class="alert alert-warning">
+  <strong>{{ total_sin_empleado }} marca(s) sin empleado asignado.</strong>
+  El reloj las registro pero nadie reclama ese PersonID:
+  <ul class="mb-0 mt-1">
+    {% for m in sin_empleado %}
+      <li><code>{{ m.person_id }}</code> — {{ m.person_name|default:"(sin nombre)" }}
+        <span class="text-muted">{{ m.marcas }} marca(s)</span></li>
+    {% endfor %}
+  </ul>
+  <a href="{% url 'core:empleados' %}?sin_mapear=1" class="small">Asignarlas a un empleado</a>
+</div>
+{% endif %}
+
+<div class="row g-3">
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header">Dias que necesitan revision</div>
+      <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
+        <table class="table table-sm tabla-compacta mb-0">
+          <tbody>
+          {% for r in inconsistentes %}
+            <tr>
+              <td><span class="badge bg-danger">✖</span></td>
+              <td>{{ r.fecha|date:"D d/m" }}</td>
+              <td><a href="{% url 'marcas:dia' r.empleado.codigo_planilla r.fecha|date:'Y-m-d' %}">{{ r.empleado.nombre }}</a></td>
+              <td class="small text-muted">{% for o in r.observaciones %}{{ o }}{% endfor %}</td>
+            </tr>
+          {% endfor %}
+          {% for r in advertencias %}
+            <tr>
+              <td><span class="badge bg-warning text-dark">⚠</span></td>
+              <td>{{ r.fecha|date:"D d/m" }}</td>
+              <td><a href="{% url 'marcas:dia' r.empleado.codigo_planilla r.fecha|date:'Y-m-d' %}">{{ r.empleado.nombre }}</a></td>
+              <td class="small text-muted">{% for o in r.observaciones %}{{ o }}{% endfor %}</td>
+            </tr>
+          {% endfor %}
+          {% if not inconsistentes and not advertencias %}
+            <tr><td class="text-muted">Nada por revisar.</td></tr>
+          {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-lg-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between">
+        <span>Marcas de hoy</span>
+        <a href="{% url 'marcas:crudas' %}" class="small">ver todas</a>
+      </div>
+      <div class="table-responsive" style="max-height: 420px; overflow-y: auto;">
+        <table class="table table-sm tabla-compacta mb-0">
+          <thead class="table-light"><tr><th>Hora</th><th>Empleado</th><th>Dispositivo</th></tr></thead>
+          <tbody>
+          {% for m in marcas_hoy %}
+            <tr>
+              <td class="hora-marca">{{ m.fecha_hora|hora }}</td>
+              <td>
+                {% if m.empleado %}
+                  <a href="{% url 'marcas:dia' m.empleado.codigo_planilla m.fecha_local|date:'Y-m-d' %}">{{ m.empleado.nombre }}</a>
+                {% else %}
+                  <span class="text-danger">sin asignar</span>
+                  <span class="text-muted small">({{ m.person_id }})</span>
+                {% endif %}
+              </td>
+              <td class="small">{{ m.device_name|default:"-" }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="3" class="text-muted">Todavia no hay marcas hoy.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% if ultima_marca %}
+      <div class="card-footer small text-muted">
+        Ultima marca recibida: {{ ultima_marca.fecha_local }} {{ ultima_marca.fecha_hora|hora }}
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
 {% endblock %}

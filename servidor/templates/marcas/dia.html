@@ -9,7 +9,7 @@
       <a href="{% url 'core:empleado_detalle' empleado.pk %}" class="text-decoration-none">{{ empleado.nombre }}</a>
       <small class="text-muted">{{ empleado.codigo_planilla }}</small>
     </h1>
-    <div class="text-muted">{{ fecha|date:"l j \d\e F Y" }} · {{ empleado.departamento.nombre }}</div>
+    <div class="text-muted">{{ fecha|date:"l j \d\e F Y" }}</div>
   </div>
   <div class="btn-group no-imprimir">
     <a class="btn btn-outline-secondary btn-sm" href="{% url 'marcas:dia' empleado.codigo_planilla anterior|date:'Y-m-d' %}">&laquo; anterior</a>
@@ -17,17 +17,6 @@
     <a class="btn btn-outline-secondary btn-sm" href="{% url 'marcas:dia' empleado.codigo_planilla siguiente|date:'Y-m-d' %}">siguiente &raquo;</a>
   </div>
 </div>
-
-{% if cerrado %}
-<div class="alert alert-secondary">
-  Este dia pertenece al periodo <strong>{{ periodo.nombre }}</strong>, que esta <strong>cerrado</strong>.
-  No se recalcula ni admite correcciones. Use un <a href="{% url 'periodos:lista' %}">ajuste</a> en el periodo abierto.
-</div>
-{% elif periodo and periodo.estado == "en_revision" %}
-<div class="alert alert-info">
-  El periodo <strong>{{ periodo.nombre }}</strong> esta en revision: solo RRHH puede hacer cambios.
-</div>
-{% endif %}
 
 <div class="row g-3">
   <div class="col-lg-8">
@@ -55,7 +44,6 @@
             <span class="dia-libre">dia libre</span>
           {% endif %}
           {% if es_feriado %}<span class="badge bg-primary ms-2">feriado</span>{% endif %}
-          {% if justificacion %}<span class="badge bg-info ms-2">{{ justificacion }}</span>{% endif %}
         </div>
 
         {% if resultado %}
@@ -91,24 +79,15 @@
             {% for o in resultado.observaciones %}<li>{{ o }}</li>{% endfor %}
           </ul>
         {% endif %}
-
-        {% if resultado.aceptado %}
-          <div class="alert alert-success mt-3 mb-0 py-2 small">
-            Advertencia aceptada por {{ resultado.aceptado_por }} el {{ resultado.aceptado_en|date:"d/m/Y H:i" }}:
-            {{ resultado.motivo_aceptacion }}
-          </div>
-        {% endif %}
         <div class="text-muted small mt-2">Calculado el {{ resultado.calculado_en|date:"d/m/Y H:i" }}</div>
         {% else %}
           <p class="text-muted mb-0">No hay resultado guardado para este dia.</p>
         {% endif %}
       </div>
-      {% if not cerrado %}
       <div class="card-footer no-imprimir">
         <a class="btn btn-sm btn-outline-secondary"
            href="{% url 'marcas:recalcular_dia' empleado.codigo_planilla fecha|date:'Y-m-d' %}">Recalcular</a>
       </div>
-      {% endif %}
     </div>
 
     <div class="card mb-3">
@@ -116,7 +95,7 @@
       <div class="table-responsive">
         <table class="table table-sm tabla-compacta mb-0">
           <thead class="table-light"><tr>
-            <th>Hora</th><th>Dispositivo</th><th>Metodo</th><th>Origen</th><th class="no-imprimir"></th>
+            <th>Hora</th><th>Dispositivo</th><th>Metodo</th><th>Nota</th><th class="no-imprimir"></th>
           </tr></thead>
           <tbody>
           {% for m in marcas_reloj %}
@@ -124,30 +103,27 @@
               <td class="hora-marca {% if m.anulada %}marca-anulada{% elif m.pk in descartadas %}marca-duplicada{% endif %}">
                 {{ m.fecha_hora|hora }}
               </td>
-              <td class="small">{{ m.device_name|default:"-" }} <span class="text-muted">{{ m.device_ip }}</span></td>
+              <td class="small">{{ m.device_name|default:"-" }}</td>
               <td class="small">{{ m.metodo_legible }}</td>
               <td class="small">
                 {% if m.anulada %}
                   <span class="badge bg-danger">anulada</span>
-                  <div class="text-muted">{{ m.motivo_anulacion|truncatechars:60 }}</div>
+                  <div class="text-muted">{{ m.motivo_anulacion|truncatechars:60 }}
+                    {% if m.anulada_por %}({{ m.anulada_por }}){% endif %}</div>
                 {% elif m.pk in descartadas %}
                   <span class="badge bg-secondary">duplicada</span>
                 {% endif %}
                 {% if m.handler %}
                   <span class="badge bg-warning text-dark" title="Modificada dentro de SmartPSS">✎ SmartPSS: {{ m.handler }}</span>
                 {% endif %}
-                {% if m.remarks %}<div class="text-muted">{{ m.remarks }}</div>{% endif %}
               </td>
               <td class="no-imprimir text-end">
-                {% if es_rrhh and not cerrado %}
                 <button class="btn btn-sm btn-outline-{% if m.anulada %}success{% else %}danger{% endif %}"
                         data-bs-toggle="collapse" data-bs-target="#anular{{ m.pk }}">
                   {% if m.anulada %}Restaurar{% else %}Anular{% endif %}
                 </button>
-                {% endif %}
               </td>
             </tr>
-            {% if es_rrhh and not cerrado %}
             <tr class="collapse no-imprimir" id="anular{{ m.pk }}">
               <td colspan="5" class="bg-light">
                 <form method="post" action="{% url 'marcas:marca_anular' m.pk %}" class="row g-2 align-items-end">
@@ -156,13 +132,10 @@
                     <label class="form-label small mb-0">Motivo (obligatorio)</label>
                     <input type="text" name="motivo" class="form-control form-control-sm" required>
                   </div>
-                  <div class="col-md-3">
-                    <button class="btn btn-sm btn-primary w-100">Confirmar</button>
-                  </div>
+                  <div class="col-md-3"><button class="btn btn-sm btn-primary w-100">Confirmar</button></div>
                 </form>
               </td>
             </tr>
-            {% endif %}
           {% empty %}
             <tr><td colspan="5" class="text-muted">No hay marcas del reloj este dia.</td></tr>
           {% endfor %}
@@ -176,44 +149,36 @@
       <div class="table-responsive">
         <table class="table table-sm tabla-compacta mb-0">
           <thead class="table-light"><tr>
-            <th>Hora</th><th>Motivo</th><th>Detalle</th><th>Estado</th><th class="no-imprimir"></th>
+            <th>Hora</th><th>Motivo</th><th>Detalle</th><th class="no-imprimir"></th>
           </tr></thead>
           <tbody>
           {% for m in marcas_manuales %}
             <tr>
-              <td class="hora-marca">✎ {{ m.fecha_hora|hora }}</td>
+              <td class="hora-marca {% if m.anulada %}marca-anulada{% endif %}">✎ {{ m.fecha_hora|hora }}</td>
               <td class="small">{{ m.get_motivo_display }}</td>
               <td class="small">
                 {{ m.detalle }}
-                <div class="text-muted">creada por {{ m.creada_por }}{% if m.resuelta_por %}, resuelta por {{ m.resuelta_por }}{% endif %}</div>
-                {% if m.comentario_resolucion %}<div class="text-muted">"{{ m.comentario_resolucion }}"</div>{% endif %}
-              </td>
-              <td>
-                <span class="badge bg-{% if m.estado == 'aprobada' %}success{% elif m.estado == 'pendiente' %}warning text-dark{% else %}secondary{% endif %}">
-                  {{ m.get_estado_display }}
-                </span>
+                <div class="text-muted">
+                  agregada por {{ m.creada_por }} el {{ m.creada_en|date:"d/m/Y H:i" }}
+                </div>
+                {% if m.anulada %}
+                  <span class="badge bg-secondary">anulada</span>
+                  <span class="text-muted">{{ m.motivo_anulacion }}</span>
+                {% endif %}
               </td>
               <td class="no-imprimir text-end">
-                {% if es_rrhh and not cerrado %}
-                  {% if m.estado == "pendiente" %}
-                    <form method="post" action="{% url 'marcas:manual_resolver' m.pk 'aprobada' %}" class="d-inline">
-                      {% csrf_token %}<button class="btn btn-sm btn-success">Aprobar</button>
-                    </form>
-                    <button class="btn btn-sm btn-outline-danger" data-bs-toggle="collapse" data-bs-target="#rechazar{{ m.pk }}">Rechazar</button>
-                  {% elif m.estado == "aprobada" %}
-                    <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#rechazar{{ m.pk }}">Anular</button>
-                  {% endif %}
+                {% if not m.anulada %}
+                <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#anularm{{ m.pk }}">Anular</button>
                 {% endif %}
               </td>
             </tr>
-            {% if es_rrhh and not cerrado %}
-            <tr class="collapse no-imprimir" id="rechazar{{ m.pk }}">
-              <td colspan="5" class="bg-light">
-                <form method="post" class="row g-2 align-items-end"
-                      action="{% if m.estado == 'pendiente' %}{% url 'marcas:manual_resolver' m.pk 'rechazada' %}{% else %}{% url 'marcas:manual_resolver' m.pk 'anulada' %}{% endif %}">
+            {% if not m.anulada %}
+            <tr class="collapse no-imprimir" id="anularm{{ m.pk }}">
+              <td colspan="4" class="bg-light">
+                <form method="post" action="{% url 'marcas:manual_anular' m.pk %}" class="row g-2 align-items-end">
                   {% csrf_token %}
                   <div class="col-md-9">
-                    <label class="form-label small mb-0">Comentario (obligatorio)</label>
+                    <label class="form-label small mb-0">Motivo (obligatorio)</label>
                     <input type="text" name="motivo" class="form-control form-control-sm" required>
                   </div>
                   <div class="col-md-3"><button class="btn btn-sm btn-primary w-100">Confirmar</button></div>
@@ -222,7 +187,7 @@
             </tr>
             {% endif %}
           {% empty %}
-            <tr><td colspan="5" class="text-muted">No hay marcas manuales este dia.</td></tr>
+            <tr><td colspan="4" class="text-muted">No hay marcas manuales este dia.</td></tr>
           {% endfor %}
           </tbody>
         </table>
@@ -231,7 +196,6 @@
   </div>
 
   <div class="col-lg-4 no-imprimir">
-    {% if puede_corregir and not cerrado %}
     <div class="card mb-3">
       <div class="card-header">Agregar marca manual</div>
       <div class="card-body">
@@ -243,34 +207,13 @@
               {{ campo }}
             </div>
           {% endfor %}
-          <button class="btn btn-primary w-100">
-            {% if aprueba_directo %}Crear y aprobar{% else %}Crear (queda pendiente){% endif %}
-          </button>
+          <button class="btn btn-primary w-100">Agregar</button>
         </form>
         <p class="small text-muted mt-2 mb-0">
-          {% if aprueba_directo %}
-            Como RRHH, la marca queda aprobada de una vez y el dia se recalcula solo.
-          {% else %}
-            Su marca queda pendiente hasta que RRHH la apruebe.
-          {% endif %}
+          El dia se recalcula de una vez. Queda registrado que la agrego usted.
         </p>
       </div>
     </div>
-    {% endif %}
-
-    {% if resultado and resultado.estado == "ADVERTENCIA" and not resultado.aceptado and es_rrhh and not cerrado %}
-    <div class="card border-warning mb-3">
-      <div class="card-header bg-warning">Aceptar la advertencia</div>
-      <div class="card-body">
-        <p class="small">Saca el dia de pendientes. No cambia ni un minuto.</p>
-        <form method="post" action="{% url 'marcas:advertencia_aceptar' resultado.pk %}">
-          {% csrf_token %}
-          <textarea name="motivo" rows="2" class="form-control mb-2" placeholder="Motivo (obligatorio)" required></textarea>
-          <button class="btn btn-warning w-100">Aceptar</button>
-        </form>
-      </div>
-    </div>
-    {% endif %}
 
     <div class="card">
       <div class="card-header">Parametros aplicados</div>
@@ -285,6 +228,11 @@
           <span>Llegada temprana</span>
           <strong>{{ parametros.contar_llegada_temprana|yesno:"cuenta,no cuenta" }}</strong></li>
       </ul>
+      {% if horario %}
+      <div class="card-footer small">
+        <a href="{% url 'horarios:editar' horario.pk %}">Cambiar estos parametros</a>
+      </div>
+      {% endif %}
     </div>
   </div>
 </div>

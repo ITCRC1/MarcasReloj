@@ -25,13 +25,18 @@ def hora(dt):
 
 
 @register.filter
+def dic(diccionario, clave):
+    """Acceso por clave variable, que la plantilla no permite con el punto."""
+    return diccionario.get(clave, 0) if diccionario else 0
+
+
+@register.filter
 def color_estado(estado):
     return {
         "OK": "success",
         "ADVERTENCIA": "warning",
         "INCONSISTENTE": "danger",
         "AUSENTE": "danger",
-        "JUSTIFICADO": "info",
         "FERIADO": "primary",
         "LIBRE": "secondary",
     }.get(estado, "secondary")

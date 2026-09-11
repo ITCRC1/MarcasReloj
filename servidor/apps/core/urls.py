@@ -18,5 +18,4 @@ urlpatterns = [
     path("empleados/<int:pk>/", views.empleado_detalle, name="empleado_detalle"),
     path("empleados/<int:pk>/editar/", views.empleado_form, name="empleado_editar"),
     path("empleados/<int:pk>/mapear/", views.empleado_mapear, name="empleado_mapear"),
-    path("bitacora/", views.bitacora, name="bitacora"),
 ]

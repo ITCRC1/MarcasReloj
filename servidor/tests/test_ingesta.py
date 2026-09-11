@@ -1,13 +1,10 @@
-"""Pruebas de la ingesta (seccion 17).
-
-Enviar el mismo lote dos veces produce 0 marcas nuevas la segunda vez.
-Una marca de un PersonID sin mapear queda con empleado = null.
-"""
+"""Ingesta de marcas: duplicados, mapeo y calculo."""
 
 from datetime import date, time
 
 import pytest
 
+from apps.core.models import Empleado
 from apps.marcas.models import MarcaReloj
 from apps.marcas.servicio import ingestar, mapear_person_id
 from apps.motor.models import ResultadoDiario
@@ -26,35 +23,29 @@ def lote_completo(person_id="1024"):
 
 
 @pytest.mark.django_db
-def test_reenviar_el_mismo_lote_no_duplica(sucursal, maria):
-    primero = ingestar(sucursal, lote_completo())
+def test_reenviar_el_mismo_lote_no_duplica(maria):
+    primero = ingestar(lote_completo())
     assert primero == {"recibidas": 4, "nuevas": 4, "duplicadas": 0, "sin_empleado": 0}
 
-    segundo = ingestar(sucursal, lote_completo())
+    segundo = ingestar(lote_completo())
     assert segundo["nuevas"] == 0
     assert segundo["duplicadas"] == 4
     assert MarcaReloj.objects.count() == 4
 
 
 @pytest.mark.django_db
-def test_person_id_sin_mapear_queda_sin_empleado(sucursal, maria):
-    resultado = ingestar(sucursal, lote_completo(person_id="9999"))
+def test_person_id_sin_mapear_queda_sin_empleado(maria):
+    resultado = ingestar(lote_completo(person_id="9999"))
     assert resultado["sin_empleado"] == 4
     assert MarcaReloj.objects.filter(empleado__isnull=True).count() == 4
 
 
 @pytest.mark.django_db
-def test_mapear_adopta_las_marcas_y_recalcula(sucursal, maria, departamentos):
-    from apps.core.models import Empleado
-    from apps.horarios.models import AsignacionHorario, Horario
-
-    ingestar(sucursal, lote_completo(person_id="9999"))
+def test_mapear_adopta_las_marcas_y_recalcula(maria, horario_partido):
+    ingestar(lote_completo(person_id="9999"))
     nuevo = Empleado.objects.create(
         codigo_planilla="E-0099", nombre="Rodrigo Nunez",
-        departamento=departamentos["admin"], fecha_ingreso=date(2024, 1, 1),
-    )
-    AsignacionHorario.objects.create(
-        empleado=nuevo, horario=Horario.objects.first(), vigente_desde=date(2024, 1, 1)
+        horario=horario_partido, fecha_ingreso=date(2024, 1, 1),
     )
 
     adoptadas = mapear_person_id(nuevo, "9999")
@@ -67,8 +58,8 @@ def test_mapear_adopta_las_marcas_y_recalcula(sucursal, maria, departamentos):
 
 
 @pytest.mark.django_db
-def test_la_ingesta_calcula_el_dia(sucursal, maria):
-    ingestar(sucursal, lote_completo())
+def test_la_ingesta_calcula_el_dia(maria):
+    ingestar(lote_completo())
     resultado = ResultadoDiario.objects.get(empleado=maria, fecha=LUNES)
     assert resultado.estado == "OK"
     assert resultado.minutos_ordinarios == 480
@@ -76,20 +67,25 @@ def test_la_ingesta_calcula_el_dia(sucursal, maria):
 
 
 @pytest.mark.django_db
-def test_lote_vacio_es_un_latido(sucursal):
-    antes = sucursal.ultima_sincronizacion
-    resultado = ingestar(sucursal, [])
-    sucursal.refresh_from_db()
-    assert resultado["recibidas"] == 0
-    assert sucursal.ultima_sincronizacion != antes
-
-
-@pytest.mark.django_db
-def test_la_hora_se_toma_de_utc_ms(sucursal, maria):
+def test_la_hora_se_toma_de_utc_ms(maria):
     """utc_ms es la fuente de verdad; la fecha local sale de convertirla a Costa Rica."""
-    ingestar(sucursal, [marca_json("1024", utc_ms_de(LUNES, time(8, 0)))])
+    ingestar([marca_json("1024", utc_ms_de(LUNES, time(8, 0)))])
     marca = MarcaReloj.objects.get()
     assert marca.fecha_local == LUNES
     assert marca.hora_local.strftime("%H:%M") == "08:00"
     # 08:00 en Costa Rica son las 14:00 UTC.
     assert marca.fecha_hora.strftime("%H:%M") == "14:00"
+
+
+@pytest.mark.django_db
+def test_un_empleado_sin_horario_no_rompe_nada(db):
+    Empleado.objects.create(
+        codigo_planilla="E-0001", nombre="Sin horario",
+        person_id_smartpss="5555", fecha_ingreso=date(2024, 1, 1),
+    )
+    ingestar(lote_completo(person_id="5555"))
+    resultado = ResultadoDiario.objects.get(fecha=LUNES)
+    # Sin horario todos los dias son libres: lo trabajado va a descanso.
+    assert resultado.estado == "ADVERTENCIA"
+    assert resultado.minutos_esperados == 0
+    assert resultado.minutos_descanso_trabajado == 480

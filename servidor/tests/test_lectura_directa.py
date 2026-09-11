@@ -1,4 +1,4 @@
-"""Lectura directa: SmartPSS escribe en esta misma base y el sistema la lee.
+﻿"""Lectura directa: SmartPSS escribe en esta misma base y el sistema la lee.
 
 Se crea una tabla identica a la que crea SmartPSS (las 12 columnas de su
 documentacion), se le insertan marcas y se comprueba que el comando las importe,
@@ -89,11 +89,11 @@ def test_no_confunde_las_tablas_del_sistema(tabla_smartpss):
 
 
 @pytest.mark.django_db
-def test_importa_las_marcas_y_calcula_el_dia(tabla_smartpss, sucursal, maria):
+def test_importa_las_marcas_y_calcula_el_dia(tabla_smartpss, maria):
     for hora in (time(8, 12), time(12, 0), time(13, 0), time(17, 0)):
         escribir_marca("1024", LUNES, hora)
 
-    call_command("leer_smartpss", tabla=TABLA, sucursal=sucursal.codigo_agente, verbosity=0)
+    call_command("leer_smartpss", tabla=TABLA, verbosity=0)
 
     assert MarcaReloj.objects.count() == 4
     assert MarcaReloj.objects.filter(empleado=maria).count() == 4
@@ -104,26 +104,26 @@ def test_importa_las_marcas_y_calcula_el_dia(tabla_smartpss, sucursal, maria):
 
 
 @pytest.mark.django_db
-def test_correr_dos_veces_no_duplica(tabla_smartpss, sucursal, maria):
+def test_correr_dos_veces_no_duplica(tabla_smartpss, maria):
     for hora in (time(8, 0), time(12, 0), time(13, 0), time(17, 0)):
         escribir_marca("1024", LUNES, hora)
 
-    call_command("leer_smartpss", tabla=TABLA, sucursal=sucursal.codigo_agente, verbosity=0)
-    call_command("leer_smartpss", tabla=TABLA, sucursal=sucursal.codigo_agente, verbosity=0)
+    call_command("leer_smartpss", tabla=TABLA, verbosity=0)
+    call_command("leer_smartpss", tabla=TABLA, verbosity=0)
 
     assert MarcaReloj.objects.count() == 4
 
 
 @pytest.mark.django_db
-def test_una_marca_nueva_se_agrega_y_recalcula(tabla_smartpss, sucursal, maria):
+def test_una_marca_nueva_se_agrega_y_recalcula(tabla_smartpss, maria):
     for hora in (time(8, 0), time(12, 0), time(13, 0)):
         escribir_marca("1024", LUNES, hora)
-    call_command("leer_smartpss", tabla=TABLA, sucursal=sucursal.codigo_agente, verbosity=0)
+    call_command("leer_smartpss", tabla=TABLA, verbosity=0)
     assert ResultadoDiario.objects.get(empleado=maria, fecha=LUNES).estado == "INCONSISTENTE"
 
     # Alguien marca la salida y SmartPSS la escribe.
     escribir_marca("1024", LUNES, time(17, 0))
-    call_command("leer_smartpss", tabla=TABLA, sucursal=sucursal.codigo_agente, verbosity=0)
+    call_command("leer_smartpss", tabla=TABLA, verbosity=0)
 
     resultado = ResultadoDiario.objects.get(empleado=maria, fecha=LUNES)
     assert resultado.estado == "OK"
@@ -131,29 +131,29 @@ def test_una_marca_nueva_se_agrega_y_recalcula(tabla_smartpss, sucursal, maria):
 
 
 @pytest.mark.django_db
-def test_un_person_id_sin_mapear_queda_sin_empleado(tabla_smartpss, sucursal, maria):
+def test_un_person_id_sin_mapear_queda_sin_empleado(tabla_smartpss, maria):
     escribir_marca("9999", LUNES, time(8, 0), nombre="Rodrigo Nunez")
-    call_command("leer_smartpss", tabla=TABLA, sucursal=sucursal.codigo_agente, verbosity=0)
+    call_command("leer_smartpss", tabla=TABLA, verbosity=0)
     marca = MarcaReloj.objects.get()
     assert marca.empleado is None
     assert marca.person_name == "Rodrigo Nunez"
 
 
 @pytest.mark.django_db
-def test_la_hora_sale_de_utc_ms(tabla_smartpss, sucursal, maria):
+def test_la_hora_sale_de_utc_ms(tabla_smartpss, maria):
     escribir_marca("1024", LUNES, time(8, 0))
-    call_command("leer_smartpss", tabla=TABLA, sucursal=sucursal.codigo_agente, verbosity=0)
+    call_command("leer_smartpss", tabla=TABLA, verbosity=0)
     marca = MarcaReloj.objects.get()
     assert marca.fecha_local == LUNES
     assert marca.hora_local.strftime("%H:%M") == "08:00"
 
 
 @pytest.mark.django_db
-def test_el_handler_de_smartpss_llega_hasta_la_observacion(tabla_smartpss, sucursal, maria):
+def test_el_handler_de_smartpss_llega_hasta_la_observacion(tabla_smartpss, maria):
     escribir_marca("1024", LUNES, time(8, 0), handler="operador1")
     for hora in (time(12, 0), time(13, 0), time(17, 0)):
         escribir_marca("1024", LUNES, hora)
-    call_command("leer_smartpss", tabla=TABLA, sucursal=sucursal.codigo_agente, verbosity=0)
+    call_command("leer_smartpss", tabla=TABLA, verbosity=0)
 
     resultado = ResultadoDiario.objects.get(empleado=maria, fecha=LUNES)
     assert any("SmartPSS" in o for o in resultado.observaciones)
@@ -167,8 +167,9 @@ def test_no_se_acepta_un_nombre_de_tabla_peligroso(db):
 
 
 @pytest.mark.django_db
-def test_el_comando_avisa_si_no_hay_tabla_configurada(db, sucursal, maria):
+def test_el_comando_avisa_si_no_hay_tabla_configurada(db, maria):
     from django.core.management.base import CommandError
 
     with pytest.raises(CommandError, match="SMARTPSS_TABLA"):
         call_command("leer_smartpss", verbosity=0)
+

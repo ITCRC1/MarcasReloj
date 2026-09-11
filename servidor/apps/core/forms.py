@@ -26,8 +26,8 @@ class EmpleadoForm(ControlesBootstrap):
     class Meta:
         model = Empleado
         fields = [
-            "codigo_planilla", "nombre", "identificacion", "departamento",
-            "fecha_ingreso", "fecha_salida", "activo",
+            "codigo_planilla", "nombre", "identificacion", "person_id_smartpss",
+            "departamento", "horario", "fecha_ingreso", "fecha_salida", "activo",
         ]
 
 

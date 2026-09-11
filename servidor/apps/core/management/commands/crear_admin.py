@@ -1,4 +1,4 @@
-"""Crea el usuario administrador sin consola interactiva.
+﻿"""Crea el usuario administrador sin consola interactiva.
 
     manage.py crear_admin --usuario admin --clave "..."
 
@@ -16,10 +16,9 @@ error aqui dejaria el servicio sin levantar.
 
 import os
 
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import User
 from django.core.management.base import BaseCommand
 
-from apps.core.permisos import ADMINISTRADOR
 
 
 class Command(BaseCommand):
@@ -44,7 +43,6 @@ class Command(BaseCommand):
             self.stdout.write("crear_admin: sin datos, no se hace nada.")
             return
 
-        grupo, _ = Group.objects.get_or_create(name=ADMINISTRADOR)
         existente = User.objects.filter(username=usuario).first()
 
         if existente:
@@ -55,7 +53,6 @@ class Command(BaseCommand):
             if opciones["cambiar_clave"]:
                 existente.set_password(clave)
             existente.save()
-            existente.groups.add(grupo)
             accion = "actualizado" if opciones["cambiar_clave"] else "ya existia"
             self.stdout.write(self.style.SUCCESS(f"crear_admin: '{usuario}' {accion}."))
             return
@@ -63,8 +60,8 @@ class Command(BaseCommand):
         nuevo = User.objects.create_superuser(
             username=usuario, email=correo or "", password=clave
         )
-        nuevo.groups.add(grupo)
         self.stdout.write(self.style.SUCCESS(f"crear_admin: '{usuario}' creado."))
         self.stdout.write(
             "Borre ADMIN_INICIAL_CLAVE de las variables cuando confirme que entra."
         )
+

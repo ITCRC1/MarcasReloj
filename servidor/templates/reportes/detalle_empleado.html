@@ -1,27 +1,85 @@
 {% extends "base.html" %}
+{% load formato %}
 {% block titulo %}Detalle {{ empleado.codigo_planilla }}{% endblock %}
 {% block contenido %}
 <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
   <div>
     <h1 class="h5 mb-0">{{ empleado.codigo_planilla }} · {{ empleado.nombre }}</h1>
     <div class="text-muted small">
-      Horario: {{ horario.nombre|default:"sin asignar" }} ·
-      Periodo {{ periodo.nombre }} ({{ periodo.desde|date:"d/m/Y" }} a {{ periodo.hasta|date:"d/m/Y" }})
+      Horario: {{ empleado.horario.nombre|default:"sin asignar" }} ·
+      del {{ desde|date:"d/m/Y" }} al {{ hasta|date:"d/m/Y" }}
     </div>
   </div>
   <div class="btn-group no-imprimir">
-    <a class="btn btn-sm btn-outline-danger" href="?formato=pdf">PDF</a>
-    <a class="btn btn-sm btn-outline-success" href="?formato=excel">Excel</a>
+    <a class="btn btn-sm btn-success"
+       href="?desde={{ desde|date:'Y-m-d' }}&hasta={{ hasta|date:'Y-m-d' }}&formato=excel">Excel</a>
     <button class="btn btn-sm btn-outline-secondary" onclick="window.print()">Imprimir</button>
   </div>
 </div>
 
+<form class="row g-2 align-items-end mb-3 no-imprimir">
+  <div class="col-auto">
+    <label class="form-label small mb-0">Desde</label>
+    <input type="date" name="desde" value="{{ desde|date:'Y-m-d' }}" class="form-control form-control-sm">
+  </div>
+  <div class="col-auto">
+    <label class="form-label small mb-0">Hasta</label>
+    <input type="date" name="hasta" value="{{ hasta|date:'Y-m-d' }}" class="form-control form-control-sm">
+  </div>
+  <div class="col-auto"><button class="btn btn-sm btn-primary">Ver</button></div>
+</form>
+
 <div class="card">
   <div class="table-responsive">
-    {% include "reportes/_detalle_tabla.html" %}
+    <table class="table table-sm tabla-compacta mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Fecha</th><th>E1</th><th>S1</th><th>E2</th><th>S2</th>
+          <th class="minutos">Ordinario</th><th class="minutos">Extra</th>
+          <th class="minutos">Tardia</th><th class="minutos">No lab.</th>
+          <th>Estado / observacion</th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for d in dias %}
+        <tr>
+          <td>{{ d.r.fecha|date:"D d/m" }}</td>
+          <td class="hora-marca">{{ d.e1|default:"—" }}{% if d.e1 in d.manuales %} ✎{% endif %}</td>
+          <td class="hora-marca">{{ d.s1|default:"—" }}{% if d.s1 in d.manuales %} ✎{% endif %}</td>
+          <td class="hora-marca">{{ d.e2|default:"—" }}{% if d.e2 in d.manuales %} ✎{% endif %}</td>
+          <td class="hora-marca">{{ d.s2|default:"—" }}{% if d.s2 in d.manuales %} ✎{% endif %}</td>
+          <td class="minutos">{{ d.r.minutos_ordinarios|hm }}</td>
+          <td class="minutos">{{ d.r.minutos_extra|hm }}</td>
+          <td class="minutos">{{ d.r.minutos_tardia|hm }}</td>
+          <td class="minutos">{{ d.r.minutos_no_laborados|hm }}</td>
+          <td class="small">
+            {{ d.r.estado|icono_estado }} {{ d.r.get_estado_display }}
+            {% for o in d.r.observaciones %}<div class="text-muted">{{ o }}</div>{% endfor %}
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="10" class="text-muted">No hay dias calculados en ese rango.</td></tr>
+      {% endfor %}
+      </tbody>
+      <tfoot class="table-light">
+        <tr>
+          <th>Totales</th><th></th><th></th><th></th><th></th>
+          <th class="minutos">{{ totales.minutos_ordinarios|hm_cero }}</th>
+          <th class="minutos">{{ totales.minutos_extra|hm_cero }}</th>
+          <th class="minutos">{{ totales.minutos_tardia|hm_cero }}</th>
+          <th class="minutos">{{ totales.minutos_no_laborados|hm_cero }}</th>
+          <th class="small">
+            {% if por_revisar %}{{ por_revisar }} dia(s) por revisar{% else %}sin pendientes{% endif %}
+            {% if totales.minutos_feriado %} · feriado {{ totales.minutos_feriado|hm }}{% endif %}
+            {% if totales.minutos_descanso_trabajado %} · descanso {{ totales.minutos_descanso_trabajado|hm }}{% endif %}
+            {% if totales.minutos_fuera_horario %} · fuera de horario {{ totales.minutos_fuera_horario|hm }}{% endif %}
+          </th>
+        </tr>
+      </tfoot>
+    </table>
   </div>
   <div class="card-footer small text-muted">
-    ✎ marca manual · ⚠ advertencia · ✖ inconsistencia.
+    ✎ marca manual · ⚠ advertencia · ✖ marcas incompletas.
     Las marcas se muestran por posicion: con 2 marcas aparecen en E1 y S1.
   </div>
 </div>

@@ -1,13 +1,13 @@
-"""Exportacion a Excel y PDF.
+"""Exportacion a Excel.
 
-En Excel el tiempo se escribe como valor de tiempo (minutos / 1440) con formato
-[h]:mm, para que las sumas funcionen dentro de la hoja. En PDF se muestra H:MM.
+El tiempo se escribe como valor de tiempo (minutos / 1440) con formato [h]:mm,
+para que las sumas funcionen dentro de la hoja. Si se escribiera "7:48" como
+texto, Excel no podria sumarlo.
 """
 
 import io
 
 from django.http import HttpResponse
-from django.template.loader import render_to_string
 from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
@@ -53,18 +53,4 @@ def respuesta_excel(libro, nombre: str) -> HttpResponse:
         content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     )
     respuesta["Content-Disposition"] = f'attachment; filename="{nombre}.xlsx"'
-    return respuesta
-
-
-def respuesta_pdf(plantilla: str, contexto: dict, nombre: str) -> HttpResponse:
-    """Genera el PDF a partir de la misma plantilla HTML que se ve en pantalla."""
-    from xhtml2pdf import pisa
-
-    html = render_to_string(plantilla, {**contexto, "para_pdf": True})
-    flujo = io.BytesIO()
-    error = pisa.CreatePDF(html, dest=flujo, encoding="utf-8")
-    if error.err:
-        return HttpResponse("No se pudo generar el PDF.", status=500)
-    respuesta = HttpResponse(flujo.getvalue(), content_type="application/pdf")
-    respuesta["Content-Disposition"] = f'attachment; filename="{nombre}.pdf"'
     return respuesta

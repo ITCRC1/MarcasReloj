@@ -19,30 +19,13 @@
       {% if user.is_authenticated %}
       <ul class="navbar-nav me-auto">
         <li class="nav-item"><a class="nav-link" href="{% url 'core:tablero' %}">Tablero</a></li>
-        <li class="nav-item"><a class="nav-link" href="{% url 'marcas:pendientes' %}">Pendientes</a></li>
+        <li class="nav-item"><a class="nav-link" href="{% url 'reportes:reporte' %}">Reporte</a></li>
         <li class="nav-item"><a class="nav-link" href="{% url 'core:empleados' %}">Empleados</a></li>
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Horarios</a>
-          <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="{% url 'horarios:lista' %}">Horarios</a></li>
-            <li><a class="dropdown-item" href="{% url 'horarios:asignaciones' %}">Asignaciones</a></li>
-            <li><a class="dropdown-item" href="{% url 'horarios:feriados' %}">Feriados</a></li>
-            <li><a class="dropdown-item" href="{% url 'horarios:justificaciones' %}">Justificaciones</a></li>
-          </ul>
-        </li>
-        <li class="nav-item"><a class="nav-link" href="{% url 'periodos:lista' %}">Periodos</a></li>
-        <li class="nav-item"><a class="nav-link" href="{% url 'reportes:indice' %}">Reportes</a></li>
-        <li class="nav-item dropdown">
-          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Mas</a>
-          <ul class="dropdown-menu">
-            <li><a class="dropdown-item" href="{% url 'marcas:crudas' %}">Marcas crudas</a></li>
-            <li><a class="dropdown-item" href="{% url 'core:bitacora' %}">Bitacora</a></li>
-            <li><a class="dropdown-item" href="/api/docs" target="_blank">API</a></li>
-            {% if es_admin %}<li><a class="dropdown-item" href="/admin/">Administracion</a></li>{% endif %}
-          </ul>
-        </li>
+        <li class="nav-item"><a class="nav-link" href="{% url 'horarios:lista' %}">Horarios</a></li>
+        <li class="nav-item"><a class="nav-link" href="{% url 'horarios:feriados' %}">Feriados</a></li>
+        <li class="nav-item"><a class="nav-link" href="{% url 'marcas:crudas' %}">Marcas</a></li>
       </ul>
-      <span class="navbar-text me-3">{{ user.get_username }} <span class="badge bg-secondary">{{ rol }}</span></span>
+      <span class="navbar-text me-3">{{ user.get_username }}</span>
       <form method="post" action="{% url 'core:salir' %}" class="d-inline">{% csrf_token %}
         <button class="btn btn-sm btn-outline-light">Salir</button>
       </form>
@@ -63,6 +46,5 @@
 </main>
 
 <script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
-<script src="{% static 'js/htmx.min.js' %}"></script>
 </body>
 </html>

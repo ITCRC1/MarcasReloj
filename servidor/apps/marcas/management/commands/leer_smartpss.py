@@ -1,15 +1,11 @@
 """Lee las marcas que SmartPSS dejo en esta misma base.
 
-Es la alternativa al agente, para cuando SmartPSS escribe directamente en la base
-del sistema. No hay nada que transportar entre maquinas: se lee la tabla y se
-entrega al mismo servicio de ingesta que usa el agente.
-
     manage.py leer_smartpss --explorar     encuentra la tabla que creo SmartPSS
     manage.py leer_smartpss                una pasada
     manage.py leer_smartpss --continuo     se queda corriendo cada minuto
 
-No hace falta estado en disco: la marca de agua sale de la propia base, de la
-marca mas reciente que ya se importo, menos la ventana de relectura.
+No hace falta guardar estado en ningun lado: la marca de agua sale de la propia
+base, de la marca mas reciente que ya se importo, menos la ventana de relectura.
 """
 
 import time
@@ -19,7 +15,6 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Max
 
-from apps.core.models import Sucursal
 from apps.core.tiempo import CR
 from apps.marcas import lector_directo
 from apps.marcas.models import MarcaReloj
@@ -38,9 +33,6 @@ class Command(BaseCommand):
         )
         parser.add_argument("--tabla", help="nombre de la tabla; por defecto SMARTPSS_TABLA")
         parser.add_argument(
-            "--sucursal", help="codigo de agente; obligatorio si hay mas de una",
-        )
-        parser.add_argument(
             "--desde", help="AAAA-MM-DD; ignora la marca de agua y relee desde esa fecha",
         )
         parser.add_argument(
@@ -58,10 +50,8 @@ class Command(BaseCommand):
         except lector_directo.TablaInvalida as error:
             raise CommandError(str(error))
 
-        sucursal = self._sucursal(opciones.get("sucursal"))
-
         if not opciones["continuo"]:
-            self._una_pasada(tabla, sucursal, opciones.get("desde"))
+            self._una_pasada(tabla, opciones.get("desde"))
             return
 
         self.stdout.write(
@@ -69,20 +59,19 @@ class Command(BaseCommand):
         )
         while True:
             try:
-                self._una_pasada(tabla, sucursal, opciones.get("desde"))
+                self._una_pasada(tabla, opciones.get("desde"))
             except KeyboardInterrupt:
                 self.stdout.write("Detenido.")
                 return
-            except Exception as error:  # noqa: BLE001 - es un proceso que no debe caerse
+            except Exception as error:  # noqa: BLE001 - no debe caerse
                 self.stderr.write(self.style.ERROR(f"Error en la pasada: {error}"))
             time.sleep(opciones["intervalo"])
 
     # ------------------------------------------------------------------ pasada
 
-    def _una_pasada(self, tabla: str, sucursal: Sucursal, desde: str | None) -> None:
-        utc_ms = self._marca_de_agua(sucursal, desde)
-        marcas = lector_directo.leer_desde(tabla, utc_ms, LOTE_MAX)
-        resultado = ingestar(sucursal, marcas)
+    def _una_pasada(self, tabla: str, desde: str | None) -> None:
+        marcas = lector_directo.leer_desde(tabla, self._marca_de_agua(desde), LOTE_MAX)
+        resultado = ingestar(marcas)
         momento = datetime.now(tz=CR).strftime("%H:%M:%S")
         mensaje = (
             f"{momento}  leidas {resultado['recibidas']}, "
@@ -93,51 +82,28 @@ class Command(BaseCommand):
         estilo = self.style.SUCCESS if resultado["nuevas"] else self.style.HTTP_INFO
         self.stdout.write(estilo(mensaje))
 
-    def _marca_de_agua(self, sucursal: Sucursal, desde: str | None) -> int:
-        """Desde donde leer. Se relee hacia atras porque SmartPSS puede escribir
-        marcas con horas pasadas cuando vuelve de estar cerrado. Los duplicados
-        los descarta la ingesta, asi que releer nunca hace dano."""
+    def _marca_de_agua(self, desde: str | None) -> int:
+        """Desde donde leer.
+
+        Se relee hacia atras porque SmartPSS puede escribir marcas con horas
+        pasadas cuando vuelve de estar cerrado. Los duplicados los descarta la
+        ingesta, asi que releer nunca hace dano.
+        """
         if desde:
             try:
                 dia = date.fromisoformat(desde)
             except ValueError:
                 raise CommandError(f"--desde '{desde}' no es AAAA-MM-DD")
-            return int(
-                datetime(dia.year, dia.month, dia.day, tzinfo=CR).timestamp() * 1000
-            )
+            return int(datetime(dia.year, dia.month, dia.day, tzinfo=CR).timestamp() * 1000)
 
-        ultimo = MarcaReloj.objects.filter(sucursal=sucursal).aggregate(
-            tope=Max("utc_ms")
-        )["tope"]
+        ultimo = MarcaReloj.objects.aggregate(tope=Max("utc_ms"))["tope"]
         if ultimo is not None:
             return ultimo - settings.SMARTPSS_VENTANA_HORAS * 3600 * 1000
 
         if settings.SMARTPSS_FECHA_INICIO:
             dia = date.fromisoformat(settings.SMARTPSS_FECHA_INICIO)
-            return int(
-                datetime(dia.year, dia.month, dia.day, tzinfo=CR).timestamp() * 1000
-            )
+            return int(datetime(dia.year, dia.month, dia.day, tzinfo=CR).timestamp() * 1000)
         return 0
-
-    def _sucursal(self, codigo: str | None) -> Sucursal:
-        if codigo:
-            try:
-                return Sucursal.objects.get(codigo_agente=codigo)
-            except Sucursal.DoesNotExist:
-                raise CommandError(f"No existe una sucursal con codigo '{codigo}'.")
-        sucursales = list(Sucursal.objects.filter(activa=True))
-        if not sucursales:
-            raise CommandError(
-                "No hay ninguna sucursal. Cree una primero:\n"
-                '  manage.py crear_sucursal --nombre "Oficina Central" '
-                "--codigo-agente oficina-central"
-            )
-        if len(sucursales) > 1:
-            raise CommandError(
-                "Hay mas de una sucursal. Indique cual con --sucursal CODIGO. "
-                f"Disponibles: {', '.join(s.codigo_agente for s in sucursales)}"
-            )
-        return sucursales[0]
 
     # ---------------------------------------------------------------- explorar
 
@@ -154,11 +120,11 @@ class Command(BaseCommand):
             self.stdout.write("")
             self.stdout.write(self.style.WARNING("No se encontro ninguna."))
             self.stdout.write("")
-            self.stdout.write("Eso significa que SmartPSS todavia no ha escrito aqui. Revise:")
+            self.stdout.write("SmartPSS todavia no ha escrito aqui. Revise:")
             self.stdout.write("  1. Que los cinco campos de SmartPSS apunten a ESTA base.")
             self.stdout.write("  2. Que el interruptor 'Habilitar Base de Datos' este encendido.")
             self.stdout.write("  3. Que alguien haya marcado en el reloj despues de encenderlo:")
-            self.stdout.write("     SmartPSS crea la tabla al escribir la primera marca, no al guardar.")
+            self.stdout.write("     SmartPSS crea la tabla al escribir la primera marca.")
             return
 
         self.stdout.write(self.style.SUCCESS(f"  {len(candidatas)} tabla(s) encontrada(s)."))
@@ -204,7 +170,9 @@ class Command(BaseCommand):
             self.stdout.write(f"  AttendanceUtcTime  = {utc} ({lector_directo.unidad(utc)})")
             self.stdout.write(f"  AttendanceDateTime = {local} ({lector_directo.unidad(local)})")
             if local:
-                diferencia = lector_directo.a_segundos(utc) - lector_directo.a_segundos(local)
+                diferencia = (
+                    lector_directo.a_segundos(utc) - lector_directo.a_segundos(local)
+                )
                 horas = diferencia / 3600
                 if diferencia == 21600:
                     self.stdout.write(self.style.SUCCESS(
@@ -217,5 +185,5 @@ class Command(BaseCommand):
                     ))
 
         self.stdout.write("")
-        self.stdout.write("Para servidor/.env:")
+        self.stdout.write("Para las variables del servicio:")
         self.stdout.write(f"  SMARTPSS_TABLA={resumen['tabla']}")

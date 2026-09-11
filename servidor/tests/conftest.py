@@ -3,36 +3,17 @@
 from datetime import date, time
 
 import pytest
-from django.contrib.auth.models import Group, User
+from django.contrib.auth.models import User
 
-from apps.api.models import ClienteAPI
-from apps.core.models import Departamento, Empleado, Sucursal
-from apps.core.permisos import ADMINISTRADOR, CONSULTA, RRHH, SUPERVISOR
-from apps.horarios.models import AsignacionHorario, BloqueHorario, Horario
+from apps.core.models import Empleado
+from apps.horarios.models import BloqueHorario, Horario
 
 CLAVE = "clave-de-prueba-2026"
 
 
 @pytest.fixture
-def sucursal(db):
-    s = Sucursal.objects.create(nombre="Oficina Central", codigo_agente="oficina-central")
-    s.clave_en_claro = s.rotar_api_key()
-    return s
-
-
-@pytest.fixture
-def cliente_api(db):
-    c = ClienteAPI.objects.create(nombre="Planillas")
-    c.clave_en_claro = c.rotar_api_key()
-    return c
-
-
-@pytest.fixture
-def departamentos(sucursal):
-    return {
-        "admin": Departamento.objects.create(nombre="Administracion", sucursal=sucursal),
-        "ops": Departamento.objects.create(nombre="Operaciones", sucursal=sucursal),
-    }
+def usuario(db):
+    return User.objects.create_user(username="admin", password=CLAVE, is_superuser=True)
 
 
 @pytest.fixture
@@ -58,54 +39,12 @@ def horario_partido(db):
 
 
 @pytest.fixture
-def maria(departamentos, horario_partido):
-    e = Empleado.objects.create(
+def maria(horario_partido):
+    return Empleado.objects.create(
         codigo_planilla="E-0042", nombre="Maria Rodriguez",
-        person_id_smartpss="1024", departamento=departamentos["admin"],
-        fecha_ingreso=date(2024, 1, 15),
+        person_id_smartpss="1024", departamento="Administracion",
+        horario=horario_partido, fecha_ingreso=date(2024, 1, 15),
     )
-    AsignacionHorario.objects.create(
-        empleado=e, horario=horario_partido, vigente_desde=date(2024, 1, 15)
-    )
-    return e
-
-
-@pytest.fixture
-def carlos(departamentos, horario_partido):
-    """De otro departamento, para probar el alcance del supervisor."""
-    e = Empleado.objects.create(
-        codigo_planilla="E-0051", nombre="Carlos Mora",
-        person_id_smartpss="1031", departamento=departamentos["ops"],
-        fecha_ingreso=date(2024, 1, 15),
-    )
-    AsignacionHorario.objects.create(
-        empleado=e, horario=horario_partido, vigente_desde=date(2024, 1, 15)
-    )
-    return e
-
-
-@pytest.fixture
-def usuarios(db, departamentos):
-    for nombre in (ADMINISTRADOR, RRHH, SUPERVISOR, CONSULTA):
-        Group.objects.get_or_create(name=nombre)
-
-    def crear(username, grupo, superusuario=False):
-        u = User.objects.create_user(
-            username=username, password=CLAVE,
-            is_staff=superusuario, is_superuser=superusuario,
-        )
-        u.groups.add(Group.objects.get(name=grupo))
-        return u
-
-    creados = {
-        "admin": crear("admin", ADMINISTRADOR, superusuario=True),
-        "rrhh": crear("rrhh", RRHH),
-        "supervisor": crear("supervisor", SUPERVISOR),
-        "consulta": crear("consulta", CONSULTA),
-    }
-    # El supervisor solo ve Administracion.
-    departamentos["admin"].supervisores.add(creados["supervisor"])
-    return creados
 
 
 def marca_json(person_id: str, utc_ms: int, **extra) -> dict:
@@ -114,11 +53,9 @@ def marca_json(person_id: str, utc_ms: int, **extra) -> dict:
         "person_name": "Maria Rodriguez",
         "card_no": "",
         "utc_ms": utc_ms,
-        "state": 0,
         "method": 1,
         "device_ip": "192.168.1.201",
         "device_name": "Reloj Entrada",
-        "snapshot_path": "",
         "handler": "",
         "remarks": "",
     }

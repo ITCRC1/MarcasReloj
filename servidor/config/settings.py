@@ -54,14 +54,11 @@ INSTALLED_APPS = [
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
-    "simple_history",
     "apps.core",
     "apps.horarios",
     "apps.marcas",
     "apps.motor",
-    "apps.periodos",
     "apps.reportes",
-    "apps.api",
 ]
 
 MIDDLEWARE = [
@@ -73,7 +70,6 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
-    "simple_history.middleware.HistoryRequestMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -89,7 +85,6 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
-                "apps.core.context.rol_del_usuario",
             ],
         },
     },
@@ -135,13 +130,9 @@ LOGOUT_REDIRECT_URL = "core:entrar"
 
 MESSAGE_STORAGE = "django.contrib.messages.storage.session.SessionStorage"
 
-# Minutos sin sincronizar tras los cuales el tablero marca un agente como caido.
-ALERTA_AGENTE_MINUTOS = env.int("ALERTA_AGENTE_MINUTOS", default=15)
-
-# Lectura directa: cuando SmartPSS escribe en esta misma base, no hace falta el
-# agente. Es el nombre de la tabla que SmartPSS creo aqui. Se puede calificar con
-# la base ("otra_base.asistencia") si esta en otra del mismo servidor.
-# Vacio = no se usa la lectura directa.
+# Nombre de la tabla que SmartPSS creo en esta misma base. Se averigua con
+# `manage.py leer_smartpss --explorar`. Se puede calificar con la base
+# ("otra_base.asistencia") si esta en otra del mismo servidor.
 SMARTPSS_TABLA = env("SMARTPSS_TABLA", default="")
 
 # Cuanto se relee hacia atras en cada pasada. SmartPSS puede escribir marcas con

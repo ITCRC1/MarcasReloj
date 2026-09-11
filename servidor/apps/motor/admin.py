@@ -7,7 +7,7 @@ from apps.motor.models import ResultadoDiario
 class ResultadoDiarioAdmin(admin.ModelAdmin):
     list_display = [
         "fecha", "empleado", "estado", "minutos_ordinarios", "minutos_extra",
-        "minutos_tardia", "minutos_no_laborados", "aceptado_por",
+        "minutos_tardia", "minutos_no_laborados",
     ]
     list_filter = ["estado", "fecha"]
     search_fields = ["empleado__nombre", "empleado__codigo_planilla"]
