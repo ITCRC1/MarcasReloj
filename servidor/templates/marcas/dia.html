@@ -95,7 +95,7 @@
       <div class="table-responsive">
         <table class="table table-sm tabla-compacta mb-0">
           <thead class="table-light"><tr>
-            <th>Hora</th><th>Dispositivo</th><th>Metodo</th><th>Nota</th><th class="no-imprimir"></th>
+            <th>Hora</th><th>Cuenta como</th><th>Dispositivo</th><th>Metodo</th><th>Nota</th><th class="no-imprimir"></th>
           </tr></thead>
           <tbody>
           {% for m in marcas_reloj %}
@@ -103,7 +103,19 @@
               <td class="hora-marca {% if m.anulada %}marca-anulada{% elif m.pk in descartadas %}marca-duplicada{% endif %}">
                 {{ m.fecha_hora|hora }}
               </td>
-              <td class="small">{{ m.device_name|default:"-" }}</td>
+              <td class="small">
+                {% if m.papel == "entrada" %}
+                  <span class="badge bg-success-subtle text-success-emphasis">&darr; entrada</span>
+                {% elif m.papel == "salida" %}
+                  <span class="badge bg-primary-subtle text-primary-emphasis">&uarr; salida</span>
+                {% else %}
+                  <span class="text-muted">no cuenta</span>
+                {% endif %}
+                {% if m.sin_pareja %}
+                  <div class="text-danger fw-semibold">falta la salida</div>
+                {% endif %}
+              </td>
+              <td class="small" {% if m.device_ip %}title="Serie {{ m.device_ip }}"{% endif %}>{{ m.device_name|default:"-" }}</td>
               <td class="small">{{ m.metodo_legible }}</td>
               <td class="small">
                 {% if m.anulada %}
@@ -125,7 +137,7 @@
               </td>
             </tr>
             <tr class="collapse no-imprimir" id="anular{{ m.pk }}">
-              <td colspan="5" class="bg-light">
+              <td colspan="6" class="bg-light">
                 <form method="post" action="{% url 'marcas:marca_anular' m.pk %}" class="row g-2 align-items-end">
                   {% csrf_token %}
                   <div class="col-md-9">
@@ -137,7 +149,7 @@
               </td>
             </tr>
           {% empty %}
-            <tr><td colspan="5" class="text-muted">No hay marcas del reloj este dia.</td></tr>
+            <tr><td colspan="6" class="text-muted">No hay marcas del reloj este dia.</td></tr>
           {% endfor %}
           </tbody>
         </table>
@@ -149,12 +161,24 @@
       <div class="table-responsive">
         <table class="table table-sm tabla-compacta mb-0">
           <thead class="table-light"><tr>
-            <th>Hora</th><th>Motivo</th><th>Detalle</th><th class="no-imprimir"></th>
+            <th>Hora</th><th>Cuenta como</th><th>Motivo</th><th>Detalle</th><th class="no-imprimir"></th>
           </tr></thead>
           <tbody>
           {% for m in marcas_manuales %}
             <tr>
               <td class="hora-marca {% if m.anulada %}marca-anulada{% endif %}">✎ {{ m.fecha_hora|hora }}</td>
+              <td class="small">
+                {% if m.papel == "entrada" %}
+                  <span class="badge bg-success-subtle text-success-emphasis">&darr; entrada</span>
+                {% elif m.papel == "salida" %}
+                  <span class="badge bg-primary-subtle text-primary-emphasis">&uarr; salida</span>
+                {% else %}
+                  <span class="text-muted">no cuenta</span>
+                {% endif %}
+                {% if m.sin_pareja %}
+                  <div class="text-danger fw-semibold">falta la salida</div>
+                {% endif %}
+              </td>
               <td class="small">{{ m.get_motivo_display }}</td>
               <td class="small">
                 {{ m.detalle }}
@@ -174,7 +198,7 @@
             </tr>
             {% if not m.anulada %}
             <tr class="collapse no-imprimir" id="anularm{{ m.pk }}">
-              <td colspan="4" class="bg-light">
+              <td colspan="5" class="bg-light">
                 <form method="post" action="{% url 'marcas:manual_anular' m.pk %}" class="row g-2 align-items-end">
                   {% csrf_token %}
                   <div class="col-md-9">
@@ -187,7 +211,7 @@
             </tr>
             {% endif %}
           {% empty %}
-            <tr><td colspan="4" class="text-muted">No hay marcas manuales este dia.</td></tr>
+            <tr><td colspan="5" class="text-muted">No hay marcas manuales este dia.</td></tr>
           {% endfor %}
           </tbody>
         </table>

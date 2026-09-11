@@ -44,7 +44,7 @@
             <a href="{% url 'marcas:dia' m.empleado.codigo_planilla m.fecha_local|date:'Y-m-d' %}">{{ m.empleado.nombre }}</a>
           {% else %}<span class="text-danger">sin asignar</span>{% endif %}
         </td>
-        <td class="small">{{ m.device_name }} {{ m.device_ip }}</td>
+        <td class="small" {% if m.device_ip %}title="Serie {{ m.device_ip }}"{% endif %}>{{ m.device_name|default:"-" }}</td>
         <td class="small">{{ m.metodo_legible }}</td>
         <td class="small">
           {% if m.anulada %}<span class="badge bg-danger">anulada</span>{% endif %}

@@ -38,7 +38,12 @@ class MarcaReloj(models.Model):
     fecha_local = models.DateField("fecha local", db_index=True)
 
     method = models.IntegerField("metodo", default=0)
-    device_ip = models.CharField("IP del dispositivo", max_length=20, blank=True, default="")
+    device_ip = models.CharField(
+        "serie del dispositivo", max_length=20, blank=True, default="",
+        help_text="SmartPSS llama IP a esta columna, pero el reloj escribe su "
+                  "numero de serie (BA00C34PAJ426F2). Se conserva el nombre del "
+                  "campo porque es el de la tabla de SmartPSS.",
+    )
     device_name = models.CharField("dispositivo", max_length=50, blank=True)
     handler = models.CharField(
         "modificada en SmartPSS por", max_length=50, blank=True,
@@ -77,11 +82,15 @@ class MarcaReloj(models.Model):
     def hora_local(self):
         return a_local(self.fecha_hora)
 
+    # Que significa cada AttendanceMethod no viene en la tabla ni lo dice
+    # SmartPSS. El reloj del comedor manda 4. Mientras no este confirmado con
+    # el equipo, se muestra el numero tal cual en vez de inventarle un nombre:
+    # decir "clave" donde fue la cara seria peor que no decir nada.
+    METODOS: dict[int, str] = {}
+
     @property
     def metodo_legible(self) -> str:
-        return {
-            0: "desconocido", 1: "tarjeta", 2: "huella", 3: "rostro", 4: "clave",
-        }.get(self.method, str(self.method))
+        return self.METODOS.get(self.method, f"metodo {self.method}")
 
 
 class MarcaManual(models.Model):

@@ -75,14 +75,24 @@ def _snapshot_horario(ctx: calculo.ContextoDia) -> list[dict]:
 
 
 def _snapshot_marcas(resultado: calculo.ResultadoDia) -> list[dict]:
+    """Las marcas del dia, cada una con el papel que jugo en el calculo.
+
+    El reloj no dice si una marca es entrada o salida: AttendanceState llega
+    siempre en 0. El papel sale de la posicion, que es justo como las empareja
+    el motor: la primera es entrada, la segunda salida, y asi. Se guarda aqui
+    para que la pantalla muestre lo mismo que se calculo y no su propia cuenta.
+    """
     filas = [
         {
             "hora": a_local(m.hora).strftime("%H:%M"),
             "origen": m.origen,
             "id": m.ref_id,
             "descartada_por_duplicado": False,
+            "papel": "entrada" if i % 2 == 0 else "salida",
+            # Una entrada sin salida es lo que deja el dia inconsistente.
+            "sin_pareja": i % 2 == 0 and i == len(resultado.marcas_usadas) - 1,
         }
-        for m in resultado.marcas_usadas
+        for i, m in enumerate(resultado.marcas_usadas)
     ]
     filas += [
         {
@@ -90,6 +100,8 @@ def _snapshot_marcas(resultado: calculo.ResultadoDia) -> list[dict]:
             "origen": m.origen,
             "id": m.ref_id,
             "descartada_por_duplicado": True,
+            "papel": "",
+            "sin_pareja": False,
         }
         for m in resultado.marcas_descartadas
     ]

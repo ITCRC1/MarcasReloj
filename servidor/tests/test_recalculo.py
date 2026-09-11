@@ -122,3 +122,49 @@ def test_un_feriado_trabajado_no_cuenta_como_dia_normal(maria):
     assert resultado.minutos_ordinarios == 0
     assert resultado.minutos_esperados == 0
     assert resultado.minutos_feriado == 480
+
+
+# --------------------------------------------------------------------------
+# Entrada o salida: el reloj no lo dice, sale de la posicion
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_las_marcas_se_guardan_como_entrada_y_salida_alternadas(maria):
+    ingestar(marcas_de(LUNES, time(8, 0), time(12, 0), time(13, 0), time(17, 0)))
+    filas = ResultadoDiario.objects.get(empleado=maria, fecha=LUNES).marcas_usadas
+    assert [f["papel"] for f in filas] == ["entrada", "salida", "entrada", "salida"]
+    assert not any(f["sin_pareja"] for f in filas)
+
+
+@pytest.mark.django_db
+def test_la_entrada_sin_salida_queda_senalada(maria):
+    """Es el caso que hay que poder ver de un vistazo para corregirlo."""
+    ingestar(marcas_de(LUNES, time(8, 0), time(12, 0), time(13, 0)))
+    resultado = ResultadoDiario.objects.get(empleado=maria, fecha=LUNES)
+    assert resultado.estado == "INCONSISTENTE"
+    sueltas = [f for f in resultado.marcas_usadas if f["sin_pareja"]]
+    assert [f["hora"] for f in sueltas] == ["13:00"]
+
+
+@pytest.mark.django_db
+def test_la_marca_manual_que_completa_el_dia_queda_como_salida(maria, usuario):
+    ingestar(marcas_de(LUNES, time(8, 0), time(12, 0), time(13, 0)))
+    crear_marca_manual(
+        maria, datetime_local(LUNES, time(17, 0)), "olvido", "Lo confirma el guarda.", usuario,
+    )
+    filas = ResultadoDiario.objects.get(empleado=maria, fecha=LUNES).marcas_usadas
+    manual = next(f for f in filas if f["origen"] == "manual")
+    assert manual["papel"] == "salida"
+    assert not any(f["sin_pareja"] for f in filas)
+
+
+@pytest.mark.django_db
+def test_una_marca_descartada_no_tiene_papel(maria):
+    """La duplicada no cuenta, asi que no puede aparecer como entrada ni salida."""
+    ingestar(marcas_de(LUNES, time(8, 0), time(8, 1), time(12, 0), time(13, 0), time(17, 0)))
+    filas = ResultadoDiario.objects.get(empleado=maria, fecha=LUNES).marcas_usadas
+    descartadas = [f for f in filas if f["descartada_por_duplicado"]]
+    assert descartadas and all(f["papel"] == "" for f in descartadas)
+    usadas = [f for f in filas if not f["descartada_por_duplicado"]]
+    assert [f["papel"] for f in usadas] == ["entrada", "salida", "entrada", "salida"]

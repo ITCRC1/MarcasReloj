@@ -30,10 +30,27 @@ def dia(request, codigo: str, fecha: str):
         resultado = recalcular(empleado, dia_)
 
     ctx, parametros, horario = contexto_del_dia(empleado, dia_)
-    descartadas = {
-        m["id"] for m in (resultado.marcas_usadas if resultado else [])
-        if m.get("descartada_por_duplicado")
+    filas = resultado.marcas_usadas if resultado else []
+    descartadas = {m["id"] for m in filas if m.get("descartada_por_duplicado")}
+
+    # El reloj no distingue entrada de salida, asi que el papel de cada marca
+    # sale del calculo y se pega aqui para que la pantalla no lo adivine aparte.
+    papeles = {
+        (m["origen"], m["id"]): (m.get("papel", ""), m.get("sin_pareja", False))
+        for m in filas
+        if not m.get("descartada_por_duplicado")
     }
+
+    marcas_reloj = list(
+        MarcaReloj.objects.filter(empleado=empleado, fecha_local=dia_).order_by("fecha_hora")
+    )
+    marcas_manuales = list(
+        MarcaManual.objects.filter(empleado=empleado, fecha_local=dia_)
+        .select_related("creada_por").order_by("fecha_hora")
+    )
+    for origen, marcas in (("reloj", marcas_reloj), ("manual", marcas_manuales)):
+        for m in marcas:
+            m.papel, m.sin_pareja = papeles.get((origen, m.pk), ("", False))
 
     return render(
         request,
@@ -48,12 +65,8 @@ def dia(request, codigo: str, fecha: str):
             "bloques": ctx.bloques,
             "es_feriado": ctx.es_feriado,
             "parametros": parametros,
-            "marcas_reloj": MarcaReloj.objects.filter(
-                empleado=empleado, fecha_local=dia_
-            ).order_by("fecha_hora"),
-            "marcas_manuales": MarcaManual.objects.filter(
-                empleado=empleado, fecha_local=dia_
-            ).select_related("creada_por").order_by("fecha_hora"),
+            "marcas_reloj": marcas_reloj,
+            "marcas_manuales": marcas_manuales,
             "descartadas": descartadas,
             "form_manual": MarcaManualForm(),
             "form_motivo": MotivoForm(),
