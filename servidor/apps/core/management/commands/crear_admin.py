@@ -1,4 +1,4 @@
-﻿"""Crea el usuario administrador sin consola interactiva.
+"""Crea el usuario administrador sin consola interactiva.
 
     manage.py crear_admin --usuario admin --clave "..."
 

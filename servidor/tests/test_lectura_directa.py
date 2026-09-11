@@ -1,4 +1,4 @@
-﻿"""Lectura directa: SmartPSS escribe en esta misma base y el sistema la lee.
+"""Lectura directa: SmartPSS escribe en esta misma base y el sistema la lee.
 
 Se crea una tabla identica a la que crea SmartPSS (las 12 columnas de su
 documentacion), se le insertan marcas y se comprueba que el comando las importe,
