@@ -56,6 +56,52 @@ def test_el_healthcheck_apunta_a_una_ruta_que_existe(ruta):
         assert resolve(camino), f"{camino} no resuelve a ninguna vista"
 
 
+def test_el_build_no_exige_base_de_datos():
+    """collectstatic corre durante el build, cuando puede no haber DATABASE_URL.
+
+    Se ejecuta de verdad en un proceso aparte, simulando Railway sin la variable.
+    Es el escenario exacto que tumbo un despliegue: la comprobacion de
+    DATABASE_URL se disparaba al importar los settings y mataba el build, aunque
+    collectstatic no toca la base para nada.
+    """
+    import os
+    import subprocess
+    import sys as _sys
+
+    entorno = dict(os.environ)
+    entorno["RAILWAY_SERVICE_ID"] = "prueba"      # como si corriera en Railway
+    for variable in ("DATABASE_URL", "MYSQL_URL", "DATABASE_PUBLIC_URL"):
+        entorno.pop(variable, None)
+
+    resultado = subprocess.run(
+        [_sys.executable, "manage.py", "collectstatic", "--noinput", "--dry-run"],
+        cwd=RAIZ / "servidor", env=entorno, capture_output=True, text=True, timeout=120,
+    )
+    assert resultado.returncode == 0, (
+        "collectstatic fallo sin DATABASE_URL. El build de Railway no va a pasar.\n"
+        + resultado.stderr[-1500:]
+    )
+
+
+def test_el_arranque_si_exige_base_de_datos():
+    """Al reves: migrate sin DATABASE_URL debe negarse, no caer al SQLite temporal."""
+    import os
+    import subprocess
+    import sys as _sys
+
+    entorno = dict(os.environ)
+    entorno["RAILWAY_SERVICE_ID"] = "prueba"
+    for variable in ("DATABASE_URL", "MYSQL_URL", "DATABASE_PUBLIC_URL"):
+        entorno.pop(variable, None)
+
+    resultado = subprocess.run(
+        [_sys.executable, "manage.py", "migrate", "--noinput"],
+        cwd=RAIZ / "servidor", env=entorno, capture_output=True, text=True, timeout=120,
+    )
+    assert resultado.returncode != 0, "migrate deberia negarse sin base de datos"
+    assert "Falta DATABASE_URL" in resultado.stderr
+
+
 def test_el_procfile_declara_el_proceso_web():
     contenido = (RAIZ / "Procfile").read_text(encoding="utf-8")
     assert contenido.startswith("web:"), (

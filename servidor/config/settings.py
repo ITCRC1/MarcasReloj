@@ -4,6 +4,7 @@ Lo que no se configura por entorno (seccion 14 de la especificacion):
 zona horaria, USE_TZ e idioma. Son parte de las reglas del sistema, no del despliegue.
 """
 
+import sys
 from pathlib import Path
 
 import environ
@@ -92,12 +93,27 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "config.wsgi.application"
 
-# En Railway el sistema de archivos del contenedor se borra en cada despliegue.
-# Si DATABASE_URL no llega, Django caeria al SQLite local y todo *pareceria*
-# funcionar: las migraciones corren, el servidor levanta, y los datos se pierden
-# al siguiente despliegue. Ese fallo silencioso es peor que no arrancar, asi que
-# aqui se exige la variable en vez de adivinar.
-if EN_RAILWAY and not env("DATABASE_URL", default=""):
+# Railway nombra la variable distinto segun como se enlacen los servicios. Se
+# aceptan las tres para no depender de cual haya quedado.
+URL_DE_LA_BASE = (
+    env("DATABASE_URL", default="")
+    or env("MYSQL_URL", default="")
+    or env("DATABASE_PUBLIC_URL", default="")
+)
+
+# En Railway el disco del contenedor se borra en cada despliegue. Sin una base
+# externa, Django caeria al SQLite local y todo *pareceria* funcionar: las
+# migraciones corren, el servidor levanta, y los datos se pierden al siguiente
+# despliegue. Ese fallo silencioso cuesta horas de diagnostico, asi que se exige
+# la variable.
+#
+# La comprobacion no aplica a los comandos que no tocan la base: collectstatic
+# corre durante el build, cuando las variables del servicio pueden no estar, y
+# no tiene por que saber nada de la base de datos.
+COMANDOS_SIN_BASE = {"collectstatic", "makemigrations", "check", "help", "version"}
+_comando = sys.argv[1] if len(sys.argv) > 1 else ""
+
+if EN_RAILWAY and not URL_DE_LA_BASE and _comando not in COMANDOS_SIN_BASE:
     from django.core.exceptions import ImproperlyConfigured
 
     raise ImproperlyConfigured(
@@ -112,8 +128,8 @@ if EN_RAILWAY and not env("DATABASE_URL", default=""):
     )
 
 DATABASES = {
-    "default": env.db_url(
-        "DATABASE_URL", default=f"sqlite:///{BASE_DIR / 'asistencia.sqlite3'}"
+    "default": env.db_url_config(
+        URL_DE_LA_BASE or f"sqlite:///{BASE_DIR / 'asistencia.sqlite3'}"
     )
 }
 
