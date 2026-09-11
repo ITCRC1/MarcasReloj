@@ -114,17 +114,44 @@ COMANDOS_SIN_BASE = {"collectstatic", "makemigrations", "check", "help", "versio
 _comando = sys.argv[1] if len(sys.argv) > 1 else ""
 
 if EN_RAILWAY and not URL_DE_LA_BASE and _comando not in COMANDOS_SIN_BASE:
+    import os
+
     from django.core.exceptions import ImproperlyConfigured
 
+    # Se listan los NOMBRES de las variables que si llegaron, nunca sus valores.
+    # Sin esto, "falta la variable" y "la variable llego vacia" se ven igual, y
+    # la unica forma de distinguirlas es desde adentro del contenedor.
+    propias = sorted(
+        n for n in os.environ
+        if not n.startswith(("RAILWAY_", "NIXPACKS_", "MISE_"))
+        and n not in {
+            "PATH", "HOME", "HOSTNAME", "PWD", "SHLVL", "_", "LANG", "TERM",
+            "VIRTUAL_ENV", "PYTHONUNBUFFERED", "PYTHONDONTWRITEBYTECODE",
+        }
+    )
+
     raise ImproperlyConfigured(
-        "Falta DATABASE_URL.\n"
         "\n"
-        "Se detecto que esto corre en Railway, donde el disco del contenedor es\n"
-        "temporal. Sin DATABASE_URL el sistema usaria una base que se borra en\n"
-        "cada despliegue: los usuarios y las marcas desapareceran sin aviso.\n"
+        "=========================================================\n"
+        " No llego la direccion de la base de datos\n"
+        "=========================================================\n"
         "\n"
-        "En el servicio web, Variables, agregue:\n"
-        "    DATABASE_URL = ${{MySQL.MYSQL_URL}}\n"
+        "Esto corre en Railway, donde el disco del contenedor se borra en cada\n"
+        "despliegue. Sin una base externa, los usuarios y las marcas\n"
+        "desapareceran sin aviso, asi que el arranque se detiene aqui.\n"
+        "\n"
+        f"Variables que SI recibio este contenedor ({len(propias)}):\n"
+        + ("\n".join(f"    {n}" for n in propias) if propias else "    (ninguna)")
+        + "\n"
+        "\n"
+        "Si DATABASE_URL aparece en esa lista, llego vacia: es lo que pasa\n"
+        "cuando se usa ${{MySQL.MYSQL_URL}} y el servicio no se llama MySQL.\n"
+        "Si no aparece, no se guardo, o falto pulsar 'Apply changes' en Railway\n"
+        "despues de agregarla.\n"
+        "\n"
+        "En el servicio web (no en el de MySQL), Variables, agregue DATABASE_URL\n"
+        "con la direccion literal de la base. Tambien sirve MYSQL_URL o\n"
+        "DATABASE_PUBLIC_URL.\n"
     )
 
 DATABASES = {

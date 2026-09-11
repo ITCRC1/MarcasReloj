@@ -99,7 +99,10 @@ def test_el_arranque_si_exige_base_de_datos():
         cwd=RAIZ / "servidor", env=entorno, capture_output=True, text=True, timeout=120,
     )
     assert resultado.returncode != 0, "migrate deberia negarse sin base de datos"
-    assert "Falta DATABASE_URL" in resultado.stderr
+    assert "No llego la direccion de la base de datos" in resultado.stderr
+    # El error debe listar que variables si llegaron: sin eso, "falta" y "llego
+    # vacia" se ven igual desde afuera del contenedor.
+    assert "Variables que SI recibio este contenedor" in resultado.stderr
 
 
 def test_el_procfile_declara_el_proceso_web():
