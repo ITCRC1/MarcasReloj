@@ -1,0 +1,68 @@
+{% load static %}
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block titulo %}Asistencia{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/bootstrap.min.css' %}">
+  <link rel="stylesheet" href="{% static 'css/asistencia.css' %}">
+</head>
+<body>
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark no-imprimir">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="{% url 'core:tablero' %}">Asistencia</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#menu">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="menu">
+      {% if user.is_authenticated %}
+      <ul class="navbar-nav me-auto">
+        <li class="nav-item"><a class="nav-link" href="{% url 'core:tablero' %}">Tablero</a></li>
+        <li class="nav-item"><a class="nav-link" href="{% url 'marcas:pendientes' %}">Pendientes</a></li>
+        <li class="nav-item"><a class="nav-link" href="{% url 'core:empleados' %}">Empleados</a></li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Horarios</a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'horarios:lista' %}">Horarios</a></li>
+            <li><a class="dropdown-item" href="{% url 'horarios:asignaciones' %}">Asignaciones</a></li>
+            <li><a class="dropdown-item" href="{% url 'horarios:feriados' %}">Feriados</a></li>
+            <li><a class="dropdown-item" href="{% url 'horarios:justificaciones' %}">Justificaciones</a></li>
+          </ul>
+        </li>
+        <li class="nav-item"><a class="nav-link" href="{% url 'periodos:lista' %}">Periodos</a></li>
+        <li class="nav-item"><a class="nav-link" href="{% url 'reportes:indice' %}">Reportes</a></li>
+        <li class="nav-item dropdown">
+          <a class="nav-link dropdown-toggle" href="#" data-bs-toggle="dropdown">Mas</a>
+          <ul class="dropdown-menu">
+            <li><a class="dropdown-item" href="{% url 'marcas:crudas' %}">Marcas crudas</a></li>
+            <li><a class="dropdown-item" href="{% url 'core:bitacora' %}">Bitacora</a></li>
+            <li><a class="dropdown-item" href="/api/docs" target="_blank">API</a></li>
+            {% if es_admin %}<li><a class="dropdown-item" href="/admin/">Administracion</a></li>{% endif %}
+          </ul>
+        </li>
+      </ul>
+      <span class="navbar-text me-3">{{ user.get_username }} <span class="badge bg-secondary">{{ rol }}</span></span>
+      <form method="post" action="{% url 'core:salir' %}" class="d-inline">{% csrf_token %}
+        <button class="btn btn-sm btn-outline-light">Salir</button>
+      </form>
+      {% endif %}
+    </div>
+  </div>
+</nav>
+
+<main class="container-fluid py-3">
+  {% if messages %}
+    {% for m in messages %}
+      <div class="alert alert-{{ m.tags|default:'info' }} alert-dismissible fade show no-imprimir">
+        {{ m }}<button class="btn-close" data-bs-dismiss="alert"></button>
+      </div>
+    {% endfor %}
+  {% endif %}
+  {% block contenido %}{% endblock %}
+</main>
+
+<script src="{% static 'js/bootstrap.bundle.min.js' %}"></script>
+<script src="{% static 'js/htmx.min.js' %}"></script>
+</body>
+</html>

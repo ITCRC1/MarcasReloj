@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% load formato %}
+{% block titulo %}Resumen {{ periodo.nombre }}{% endblock %}
+{% block contenido %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+  <div>
+    <h1 class="h5 mb-0">Resumen del periodo {{ periodo.nombre }}</h1>
+    <div class="text-muted small">
+      {{ periodo.desde|date:"d/m/Y" }} a {{ periodo.hasta|date:"d/m/Y" }} · {{ periodo.get_estado_display }}
+    </div>
+  </div>
+  <div class="btn-group no-imprimir">
+    <a class="btn btn-sm btn-outline-success" href="?formato=excel">Excel</a>
+    <a class="btn btn-sm btn-outline-dark" href="?formato=csv">CSV</a>
+    <a class="btn btn-sm btn-outline-secondary" href="{% url 'periodos:detalle' periodo.pk %}">Ir al periodo</a>
+  </div>
+</div>
+
+{% if periodo.estado != "cerrado" %}
+<div class="alert alert-info py-2 small">
+  Este periodo todavia no esta cerrado: sus numeros pueden cambiar. Planillas debe procesar solo periodos cerrados.
+</div>
+{% endif %}
+
+<div class="card">
+  <div class="table-responsive">
+    <table class="table table-sm table-striped tabla-compacta mb-0">
+      <thead class="table-light">
+        <tr>
+          <th>Codigo</th><th>Empleado</th><th>Departamento</th>
+          <th>Dias lab.</th><th>Aus.</th><th>Just.</th><th>Fer.</th>
+          <th class="minutos">Esperado</th><th class="minutos">Ordinario</th>
+          <th class="minutos">Extra</th><th class="minutos">Feriado</th>
+          <th class="minutos">Descanso</th><th class="minutos">Tardia</th>
+          <th class="minutos">No lab.</th><th class="minutos">Fuera</th>
+          <th class="minutos">Ajustes</th><th>Pend.</th><th></th>
+        </tr>
+      </thead>
+      <tbody>
+      {% for f in filas %}
+        <tr>
+          <td><code>{{ f.codigo_empleado }}</code></td>
+          <td>{{ f.nombre }}</td>
+          <td class="small">{{ f.departamento }}</td>
+          <td>{{ f.dias_laborados }}</td>
+          <td>{{ f.dias_ausente }}</td>
+          <td>{{ f.dias_justificados }}</td>
+          <td>{{ f.dias_feriado }}</td>
+          <td class="minutos">{{ f.minutos_esperados|hm_cero }}</td>
+          <td class="minutos fw-bold">{{ f.minutos_ordinarios|hm_cero }}</td>
+          <td class="minutos">{{ f.minutos_extra|hm }}</td>
+          <td class="minutos">{{ f.minutos_feriado|hm }}</td>
+          <td class="minutos">{{ f.minutos_descanso_trabajado|hm }}</td>
+          <td class="minutos">{{ f.minutos_tardia|hm }}</td>
+          <td class="minutos">{{ f.minutos_no_laborados|hm }}</td>
+          <td class="minutos">{{ f.minutos_fuera_horario|hm }}</td>
+          <td class="minutos">{% if f.ajustes_minutos %}{{ f.ajustes_minutos }} min{% else %}-{% endif %}</td>
+          <td>{% if f.dias_pendientes %}<span class="badge bg-danger">{{ f.dias_pendientes }}</span>{% endif %}</td>
+          <td class="text-end">
+            <a class="btn btn-sm btn-outline-secondary"
+               href="{% url 'reportes:detalle_empleado' periodo.pk f.codigo_empleado %}">Detalle</a>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="18" class="text-muted">No hay resultados en este periodo. Recalcule desde la pantalla del periodo.</td></tr>
+      {% endfor %}
+      </tbody>
+      <tfoot class="table-light">
+        <tr>
+          <th colspan="7">Totales</th>
+          <th class="minutos">{{ totales.minutos_esperados|hm_cero }}</th>
+          <th class="minutos">{{ totales.minutos_ordinarios|hm_cero }}</th>
+          <th class="minutos">{{ totales.minutos_extra|hm_cero }}</th>
+          <th class="minutos">{{ totales.minutos_feriado|hm_cero }}</th>
+          <th class="minutos">{{ totales.minutos_descanso_trabajado|hm_cero }}</th>
+          <th class="minutos">{{ totales.minutos_tardia|hm_cero }}</th>
+          <th class="minutos">{{ totales.minutos_no_laborados|hm_cero }}</th>
+          <th class="minutos">{{ totales.minutos_fuera_horario|hm_cero }}</th>
+          <th colspan="3"></th>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+  <div class="card-footer small text-muted">
+    En Excel los tiempos van como valor de tiempo con formato [h]:mm, para que las sumas funcionen dentro de la hoja.
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,121 @@
+{% extends "base.html" %}
+{% load formato %}
+{% block titulo %}{{ empleado.nombre }}{% endblock %}
+{% block contenido %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <div>
+    <h1 class="h4 mb-0">{{ empleado.nombre }} <small class="text-muted">{{ empleado.codigo_planilla }}</small></h1>
+    <div class="text-muted">{{ empleado.departamento }}</div>
+  </div>
+  <div>
+    <a class="btn btn-sm btn-outline-primary" href="{% url 'marcas:dia_hoy' empleado.codigo_planilla %}">Dia de hoy</a>
+    {% if es_rrhh %}<a class="btn btn-sm btn-outline-secondary" href="{% url 'core:empleado_editar' empleado.pk %}">Editar</a>{% endif %}
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-4">
+    <div class="card mb-3">
+      <div class="card-header">Datos</div>
+      <ul class="list-group list-group-flush small">
+        <li class="list-group-item d-flex justify-content-between"><span>Identificacion</span><strong>{{ empleado.identificacion|default:"-" }}</strong></li>
+        <li class="list-group-item d-flex justify-content-between"><span>PersonID SmartPSS</span>
+          <strong>{% if empleado.person_id_smartpss %}<code>{{ empleado.person_id_smartpss }}</code>{% else %}<span class="text-danger">sin mapear</span>{% endif %}</strong></li>
+        <li class="list-group-item d-flex justify-content-between"><span>Ingreso</span><strong>{{ empleado.fecha_ingreso|date:"d/m/Y" }}</strong></li>
+        <li class="list-group-item d-flex justify-content-between"><span>Salida</span><strong>{{ empleado.fecha_salida|date:"d/m/Y"|default:"-" }}</strong></li>
+        <li class="list-group-item d-flex justify-content-between"><span>Estado</span><strong>{{ empleado.activo|yesno:"activo,inactivo" }}</strong></li>
+      </ul>
+    </div>
+
+    {% if es_rrhh and not empleado.person_id_smartpss %}
+    <div class="card border-warning mb-3">
+      <div class="card-header bg-warning">Mapear con SmartPSS</div>
+      <div class="card-body">
+        <form method="post" action="{% url 'core:empleado_mapear' empleado.pk %}" class="mb-2">
+          {% csrf_token %}
+          <div class="input-group input-group-sm">
+            {{ form_mapeo.person_id }}
+            <button class="btn btn-primary">Asignar</button>
+          </div>
+        </form>
+        {% if sugerencias %}
+          <div class="small text-muted mb-1">Sugerencias por nombre, entre las marcas sin asignar:</div>
+          <ul class="list-unstyled small mb-0">
+            {% for s in sugerencias %}
+              <li>
+                <form method="post" action="{% url 'core:empleado_mapear' empleado.pk %}" class="d-inline">
+                  {% csrf_token %}
+                  <input type="hidden" name="person_id" value="{{ s.person_id }}">
+                  <button class="btn btn-link btn-sm p-0">{{ s.person_id }}</button>
+                </form>
+                — {{ s.person_name|default:"(sin nombre)" }}
+                <span class="text-muted">{{ s.marcas }} marca(s), ultima {{ s.ultima }}</span>
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <div class="card-header">Horarios asignados</div>
+      <ul class="list-group list-group-flush small">
+        {% for a in asignaciones %}
+          <li class="list-group-item">
+            <a href="{% url 'horarios:detalle' a.horario.pk %}">{{ a.horario.nombre }}</a>
+            <div class="text-muted">{{ a.vigente_desde }} a {{ a.vigente_hasta|default:"indefinido" }}</div>
+          </li>
+        {% empty %}
+          <li class="list-group-item text-danger">Sin horario asignado: todos sus dias saldran como libres.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+
+  <div class="col-lg-8">
+    <div class="card mb-3">
+      <div class="card-header">Ultimos dias</div>
+      <div class="table-responsive">
+        <table class="table table-sm tabla-compacta mb-0">
+          <thead class="table-light"><tr>
+            <th>Fecha</th><th>Estado</th><th>Ordinario</th><th>Extra</th><th>Tardia</th><th>No lab.</th><th></th>
+          </tr></thead>
+          <tbody>
+          {% for r in ultimos_dias %}
+            <tr>
+              <td>{{ r.fecha|date:"D d/m/Y" }}</td>
+              <td><span class="badge bg-{{ r.estado|color_estado }}">{{ r.estado }}</span></td>
+              <td class="minutos">{{ r.minutos_ordinarios|hm }}</td>
+              <td class="minutos">{{ r.minutos_extra|hm }}</td>
+              <td class="minutos">{{ r.minutos_tardia|hm }}</td>
+              <td class="minutos">{{ r.minutos_no_laborados|hm }}</td>
+              <td class="text-end">
+                <a class="btn btn-sm btn-outline-secondary"
+                   href="{% url 'marcas:dia' empleado.codigo_planilla r.fecha|date:'Y-m-d' %}">Ver</a>
+              </td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="7" class="text-muted">Todavia no hay dias calculados.</td></tr>
+          {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">Justificaciones</div>
+      <ul class="list-group list-group-flush small">
+        {% for j in justificaciones %}
+          <li class="list-group-item">
+            <strong>{{ j.get_tipo_display }}</strong> {{ j.desde }} a {{ j.hasta }}
+            <div class="text-muted">{{ j.detalle }}</div>
+          </li>
+        {% empty %}
+          <li class="list-group-item text-muted">Ninguna registrada.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}

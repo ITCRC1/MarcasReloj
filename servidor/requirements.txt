@@ -1,0 +1,30 @@
+# Un solo archivo para Windows y para Linux (Railway).
+#
+# Los marcadores de plataforma hacen que pip instale lo que corresponde en cada
+# sistema. Sin ellos habria que mantener dos listas que se desincronizan, o
+# fallaria el despliegue: mysqlclient necesita compilador en Linux y gunicorn no
+# arranca en Windows porque le falta el modulo fcntl.
+
+django>=5.2,<5.3
+django-ninja
+django-simple-history
+django-environ
+
+# Driver de MySQL. En Windows mysqlclient trae rueda precompilada; en Linux se
+# usa PyMySQL, que es Python puro y se hace pasar por MySQLdb.
+# Ver servidor/config/__init__.py.
+mysqlclient; sys_platform == "win32"
+pymysql; sys_platform != "win32"
+
+# Servidor WSGI, uno por sistema.
+waitress; sys_platform == "win32"
+gunicorn; sys_platform != "win32"
+
+openpyxl             # exportacion a Excel
+xhtml2pdf            # exportacion a PDF, sin dependencias externas
+whitenoise           # archivos estaticos
+tzdata               # Windows no trae la base de zonas horarias de zoneinfo
+
+pytest
+pytest-django
+coverage

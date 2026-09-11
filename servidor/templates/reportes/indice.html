@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block titulo %}Reportes{% endblock %}
+{% block contenido %}
+<h1 class="h4 mb-3">Reportes</h1>
+
+<div class="row g-3">
+{% for p in periodos %}
+  <div class="col-md-6 col-lg-4">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between">
+        <span>{{ p.nombre }}</span>
+        <span class="badge bg-{% if p.estado == 'cerrado' %}dark{% else %}success{% endif %}">{{ p.get_estado_display }}</span>
+      </div>
+      <div class="card-body">
+        <div class="text-muted small mb-2">{{ p.desde|date:"d/m/Y" }} a {{ p.hasta|date:"d/m/Y" }}</div>
+        <div class="d-grid gap-2">
+          <a class="btn btn-sm btn-outline-primary" href="{% url 'reportes:resumen' p.pk %}">Resumen del periodo</a>
+          <a class="btn btn-sm btn-outline-secondary" href="{% url 'reportes:tardias' p.pk %}">Tardias y ausencias</a>
+          <a class="btn btn-sm btn-outline-success" href="{% url 'reportes:resumen' p.pk %}?formato=excel">Excel</a>
+          <a class="btn btn-sm btn-outline-dark" href="{% url 'reportes:resumen' p.pk %}?formato=csv">CSV</a>
+        </div>
+      </div>
+    </div>
+  </div>
+{% empty %}
+  <div class="col-12"><div class="alert alert-info">Todavia no hay periodos. Cree uno en <a href="{% url 'periodos:lista' %}">Periodos</a>.</div></div>
+{% endfor %}
+</div>
+
+{% if periodos %}
+<div class="card mt-3">
+  <div class="card-header">Detalle por empleado (para revisar y firmar)</div>
+  <div class="card-body">
+    <form class="row g-2 align-items-end" onsubmit="event.preventDefault(); window.location = '/reportes/periodo/' + this.periodo.value + '/empleado/' + this.empleado.value + '/';">
+      <div class="col-md-4">
+        <label class="form-label small mb-0">Periodo</label>
+        <select name="periodo" class="form-select">
+          {% for p in periodos %}<option value="{{ p.pk }}">{{ p.nombre }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-4">
+        <label class="form-label small mb-0">Empleado</label>
+        <select name="empleado" class="form-select">
+          {% for e in empleados %}<option value="{{ e.codigo_planilla }}">{{ e.codigo_planilla }} — {{ e.nombre }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="col-md-2"><button class="btn btn-primary w-100">Ver</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}

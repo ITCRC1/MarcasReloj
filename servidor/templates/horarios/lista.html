@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% load formato %}
+{% block titulo %}Horarios{% endblock %}
+{% block contenido %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h1 class="h4 mb-0">Horarios</h1>
+  {% if es_rrhh %}<a class="btn btn-primary btn-sm" href="{% url 'horarios:nuevo' %}">Nuevo horario</a>{% endif %}
+</div>
+
+<div class="row g-3">
+{% for h in horarios %}
+  <div class="col-md-6">
+    <div class="card h-100">
+      <div class="card-header d-flex justify-content-between">
+        <a href="{% url 'horarios:detalle' h.pk %}">{{ h.nombre }}</a>
+        <span class="badge bg-secondary">{{ h.get_tipo_jornada_display }}</span>
+      </div>
+      <div class="card-body">
+        {% for dia, etiqueta, bloques, minutos in h.resumen_semanal %}
+          <div class="mb-1">
+            <span class="text-muted small" style="display:inline-block;width:5.5rem">{{ etiqueta }}</span>
+            {% for b in bloques %}
+              <span class="bloque-horario">{{ b.hora_entrada|time:"H:i" }}–{{ b.hora_salida|time:"H:i" }}</span>
+            {% empty %}
+              <span class="dia-libre small">libre</span>
+            {% endfor %}
+            {% if minutos %}<span class="text-muted small">({{ minutos|hm }})</span>{% endif %}
+          </div>
+        {% endfor %}
+      </div>
+      <div class="card-footer small">
+        Semana: <strong>{{ h.minutos_semanales|hm_cero }}</strong>
+        {% if h.excede_limite %}
+          <span class="badge bg-warning text-dark">excede el limite de la jornada</span>
+        {% endif %}
+        · tolerancia {{ h.tolerancia_entrada_min }} min · minimo extra {{ h.minimo_extra_min }} min
+      </div>
+    </div>
+  </div>
+{% empty %}
+  <div class="col-12"><div class="alert alert-warning">No hay horarios. Sin horario, todos los dias salen como libres.</div></div>
+{% endfor %}
+</div>
+{% endblock %}

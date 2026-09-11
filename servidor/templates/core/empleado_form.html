@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block titulo %}{% if empleado %}Editar empleado{% else %}Nuevo empleado{% endif %}{% endblock %}
+{% block contenido %}
+<h1 class="h4 mb-3">{% if empleado %}Editar {{ empleado.nombre }}{% else %}Nuevo empleado{% endif %}</h1>
+<div class="card">
+  <div class="card-body">
+    <form method="post" class="row g-2">
+      {% csrf_token %}
+      {% include "_campos.html" with form=form ancho=4 %}
+      <div class="col-12 mt-3">
+        <button class="btn btn-primary">Guardar</button>
+        <a class="btn btn-outline-secondary" href="{% url 'core:empleados' %}">Cancelar</a>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}

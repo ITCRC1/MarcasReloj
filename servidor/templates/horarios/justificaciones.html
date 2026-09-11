@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% block titulo %}Justificaciones{% endblock %}
+{% block contenido %}
+<h1 class="h4">Justificaciones</h1>
+<p class="text-muted">Dias completos. Los permisos por horas quedan para una fase futura.</p>
+
+{% if es_rrhh %}
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="post" class="row g-2 align-items-end">
+      {% csrf_token %}
+      {% include "_campos.html" with form=form ancho=3 %}
+      <div class="col-md-3 mb-2"><button class="btn btn-primary w-100">Guardar</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="table-responsive">
+  <table class="table table-sm table-striped tabla-compacta">
+    <thead class="table-light"><tr>
+      <th>Empleado</th><th>Tipo</th><th>Desde</th><th>Hasta</th><th>Detalle</th><th>Registrada por</th>
+    </tr></thead>
+    <tbody>
+    {% for j in justificaciones %}
+      <tr>
+        <td>{{ j.empleado.nombre }}</td>
+        <td>{{ j.get_tipo_display }}</td>
+        <td>{{ j.desde|date:"d/m/Y" }}</td>
+        <td>{{ j.hasta|date:"d/m/Y" }}</td>
+        <td class="small">{{ j.detalle }}</td>
+        <td class="small">{{ j.registrada_por|default:"-" }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6" class="text-muted">Ninguna.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}

@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Configuracion local: nunca se versiona, solo el .env.example
+.env
+servidor/.env
+agente/.env
+
+# Datos locales
+*.sqlite3
+servidor/media/
+servidor/staticfiles/
+agente/estado.json
+agente/agente.log*
+
+# Editores
+.vscode/
+.idea/

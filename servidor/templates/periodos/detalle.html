@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% load formato %}
+{% block titulo %}{{ periodo.nombre }}{% endblock %}
+{% block contenido %}
+<div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+  <div>
+    <h1 class="h4 mb-0">{{ periodo.nombre }}</h1>
+    <div class="text-muted">
+      {{ periodo.desde|date:"d/m/Y" }} a {{ periodo.hasta|date:"d/m/Y" }} ·
+      {{ dias }} dia(s) calculado(s)
+    </div>
+  </div>
+  <div>
+    <span class="badge bg-{% if periodo.cerrado %}dark{% elif periodo.estado == 'en_revision' %}info{% else %}success{% endif %} fs-6">
+      {{ periodo.get_estado_display }}
+    </span>
+  </div>
+</div>
+
+<div class="row g-3">
+  <div class="col-lg-7">
+    <div class="card mb-3">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <span>Validaciones de cierre</span>
+        {% if not periodo.cerrado %}
+          <a class="btn btn-sm btn-outline-primary" href="?validar=1">Recalcular y validar</a>
+        {% endif %}
+      </div>
+      <div class="card-body">
+        {% if periodo.cerrado %}
+          <p class="mb-0">
+            Cerrado por <strong>{{ periodo.cerrado_por }}</strong> el {{ periodo.cerrado_en|date:"d/m/Y H:i" }}.
+            Los resultados quedaron congelados. Un periodo cerrado no se reabre.
+          </p>
+        {% elif not validado %}
+          <p class="text-muted mb-0">
+            Pulse "Recalcular y validar" para recalcular todo el periodo en este momento
+            y revisar las cinco condiciones de cierre.
+          </p>
+        {% else %}
+          <ul class="list-group list-group-flush mb-3">
+            {% for v in validaciones %}
+              <li class="list-group-item d-flex justify-content-between align-items-start">
+                <div>
+                  {% if v.ok %}<span class="text-success">&check;</span>{% else %}<span class="text-danger">&times;</span>{% endif %}
+                  {{ v.nombre }}
+                  <div class="small text-muted">{{ v.detalle }}</div>
+                </div>
+              </li>
+            {% endfor %}
+          </ul>
+          {% if advertencias %}
+            <div class="alert alert-warning py-2 small">
+              Hay {{ advertencias }} advertencia(s) sin aceptar. No bloquean el cierre, pero conviene revisarlas.
+              <a href="{% url 'marcas:pendientes' %}">Ver pendientes</a>.
+            </div>
+          {% endif %}
+          {% if es_rrhh %}
+            <form method="post" action="{% url 'periodos:cerrar' periodo.pk %}"
+                  onsubmit="return confirm('Un periodo cerrado no se reabre. Confirma el cierre?');">
+              {% csrf_token %}
+              <button class="btn btn-danger" {% if not puede_cerrar %}disabled{% endif %}>Cerrar periodo</button>
+              {% if not puede_cerrar %}
+                <span class="small text-muted ms-2">Hay validaciones sin cumplir.</span>
+              {% endif %}
+            </form>
+          {% endif %}
+        {% endif %}
+      </div>
+      {% if es_rrhh and not periodo.cerrado %}
+      <div class="card-footer d-flex gap-2">
+        <form method="post" action="{% url 'periodos:recalcular' periodo.pk %}">
+          {% csrf_token %}<button class="btn btn-sm btn-outline-secondary">Recalcular periodo</button>
+        </form>
+        {% if periodo.estado == "abierto" %}
+          <form method="post" action="{% url 'periodos:estado' periodo.pk 'en_revision' %}">
+            {% csrf_token %}<button class="btn btn-sm btn-outline-info">Pasar a revision</button>
+          </form>
+        {% else %}
+          <form method="post" action="{% url 'periodos:estado' periodo.pk 'abierto' %}">
+            {% csrf_token %}<button class="btn btn-sm btn-outline-success">Volver a abierto</button>
+          </form>
+        {% endif %}
+        <a class="btn btn-sm btn-outline-primary" href="{% url 'reportes:resumen' periodo.pk %}">Ver resumen</a>
+      </div>
+      {% endif %}
+    </div>
+
+    {% if despues_del_cierre %}
+    <div class="card border-danger mb-3">
+      <div class="card-header bg-danger text-white">Marcas recibidas despues del cierre</div>
+      <ul class="list-group list-group-flush small">
+        {% for m in despues_del_cierre|slice:":20" %}
+          <li class="list-group-item">
+            {{ m.fecha_local }} {{ m.fecha_hora|hora }} — {{ m.empleado.nombre|default:m.person_id }}
+          </li>
+        {% endfor %}
+      </ul>
+      <div class="card-footer small">Estos dias no se recalculan. Registre un ajuste en el periodo abierto.</div>
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="col-lg-5">
+    {% if es_rrhh and not periodo.cerrado %}
+    <div class="card mb-3">
+      <div class="card-header">Registrar ajuste</div>
+      <div class="card-body">
+        <form method="post" action="{% url 'periodos:ajuste_crear' periodo.pk %}" class="row g-2">
+          {% csrf_token %}
+          {% include "_campos.html" with form=form_ajuste ancho=6 %}
+          <div class="col-12 mt-2"><button class="btn btn-primary w-100">Registrar</button></div>
+        </form>
+      </div>
+      <div class="card-footer small text-muted">
+        El ajuste se aplica en este periodo aunque su fecha original sea de un periodo anterior.
+      </div>
+    </div>
+    {% endif %}
+
+    <div class="card">
+      <div class="card-header">Ajustes de este periodo</div>
+      <ul class="list-group list-group-flush small">
+        {% for a in ajustes %}
+          <li class="list-group-item">
+            <strong>{{ a.empleado.codigo_planilla }}</strong> {{ a.get_concepto_display }}
+            <span class="badge bg-{% if a.minutos > 0 %}success{% else %}danger{% endif %}">{{ a.minutos }} min</span>
+            <div class="text-muted">fecha original {{ a.fecha_original }} · {{ a.motivo }}</div>
+            <div class="text-muted">registrado por {{ a.creado_por }}</div>
+          </li>
+        {% empty %}
+          <li class="list-group-item text-muted">Ninguno.</li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}

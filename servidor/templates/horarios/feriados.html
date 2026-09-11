@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block titulo %}Feriados{% endblock %}
+{% block contenido %}
+<h1 class="h4">Feriados</h1>
+<p class="text-muted">Se cargan cada ano desde el calendario oficial. No se calculan solos, porque algunos se trasladan por ley.</p>
+
+{% if es_rrhh %}
+<div class="card mb-3">
+  <div class="card-body">
+    <form method="post" class="row g-2 align-items-end">
+      {% csrf_token %}
+      {% include "_campos.html" with form=form ancho=4 %}
+      <div class="col-md-3 mb-2"><button class="btn btn-primary w-100">Guardar</button></div>
+    </form>
+  </div>
+</div>
+{% endif %}
+
+<div class="table-responsive">
+  <table class="table table-sm table-striped tabla-compacta">
+    <thead class="table-light"><tr><th>Fecha</th><th>Nombre</th></tr></thead>
+    <tbody>
+    {% for f in feriados %}
+      <tr><td>{{ f.fecha|date:"D d/m/Y" }}</td><td>{{ f.nombre }}</td></tr>
+    {% empty %}
+      <tr><td colspan="2" class="text-muted">Ninguno cargado.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
