@@ -18,12 +18,34 @@ DEBUG = env("DJANGO_DEBUG")
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["127.0.0.1", "localhost"])
 CSRF_TRUSTED_ORIGINS = env.list("DJANGO_CSRF_TRUSTED_ORIGINS", default=[])
 
-# Railway asigna el dominio al desplegar y lo publica en esta variable. Se agrega
-# solo para no tener que acordarse de copiarlo a mano cada vez que cambia.
+# En Railway el dominio lo asigna la plataforma. Lo ideal es leerlo de
+# RAILWAY_PUBLIC_DOMAIN, pero esa variable no siempre llega al contenedor; cuando
+# no esta, se acepta el espacio de dominios de Railway, que incluye el host que
+# usa su healthcheck. Asi el despliegue no se cae por un dominio que cambio.
 DOMINIO_RAILWAY = env("RAILWAY_PUBLIC_DOMAIN", default="")
+EN_RAILWAY = bool(
+    DOMINIO_RAILWAY
+    or env("RAILWAY_ENVIRONMENT_NAME", default="")
+    or env("RAILWAY_PROJECT_ID", default="")
+    or env("RAILWAY_SERVICE_ID", default="")
+)
 if DOMINIO_RAILWAY:
     ALLOWED_HOSTS.append(DOMINIO_RAILWAY)
-    CSRF_TRUSTED_ORIGINS.append(f"https://{DOMINIO_RAILWAY}")
+elif EN_RAILWAY:
+    ALLOWED_HOSTS.append(".railway.app")
+
+
+def _origen_de(host: str) -> str:
+    """Host de ALLOWED_HOSTS a origen para CSRF. '.dominio' es comodin."""
+    return f"https://*{host}" if host.startswith(".") else f"https://{host}"
+
+
+# Sin esto el formulario de acceso falla con 403 detras de HTTPS, porque Django
+# compara el origen del POST contra esta lista.
+if not CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS = [
+        _origen_de(h) for h in ALLOWED_HOSTS if h not in ("127.0.0.1", "localhost", "*")
+    ]
 
 INSTALLED_APPS = [
     "django.contrib.admin",
