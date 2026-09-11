@@ -57,10 +57,16 @@ git push -u origin main
 
 1. En <https://railway.app>, **New Project → Deploy from GitHub repo** y elija
    `MarcasReloj`.
-2. En el servicio que se crea: **Settings → Root Directory** = `servidor`.
-   El proyecto Django no esta en la raiz del repositorio.
-3. **New → Database → Add MySQL.** Insista en MySQL; el PostgreSQL que sugiere
+2. **New → Database → Add MySQL.** Insista en MySQL; el PostgreSQL que sugiere
    por defecto no sirve para SmartPSS.
+
+No hace falta tocar el **Root Directory**. El proyecto Django vive en `servidor/`,
+pero la raiz del repositorio trae un `requirements.txt`, un `Procfile` y un
+`railway.json` que apuntan ahi, asi que el constructor lo encuentra igual.
+
+> Si el build falla con *"Railpack could not determine how to build the app"*, es
+> que esos tres archivos no estan en la rama que Railway esta construyendo.
+> Compruebe que el ultimo commit este en GitHub.
 
 ---
 

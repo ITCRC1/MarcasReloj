@@ -1,0 +1,9 @@
+# El proyecto Django vive en servidor/, no en la raiz.
+#
+# Este archivo existe para que los constructores automaticos (Railpack, Nixpacks,
+# Heroku) detecten que esto es un proyecto de Python cuando se despliega desde la
+# raiz del repositorio, sin tener que acordarse de configurar el "Root Directory".
+#
+# La lista de verdad esta en servidor/requirements.txt.
+
+-r servidor/requirements.txt
