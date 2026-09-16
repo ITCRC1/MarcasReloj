@@ -9,35 +9,73 @@ Sobre la tabla de SmartPSS solo se hace SELECT. Nunca se escribe ni se borra.
 """
 
 import re
+from datetime import datetime, timedelta, timezone
 
 from django.db import connection
 
+from apps.core.tiempo import CR
+
 # Columnas que SmartPSS crea. El orden es el de su documentacion.
 COLUMNAS = [
-    "PersonID", "PersonName", "PerSonCardNo", "AttendanceUtcTime",
+    "PersonID", "PersonName", "PerSonCardNo", "AttendanceDateTime", "AttendanceUtcTime",
     "AttendanceState", "AttendanceMethod", "DeviceIPAddress", "DeviceName",
     "SnapshotsPath", "Handler", "Remarks",
 ]
 
 COLUMNA_FIRMA = "attendanceutctime"
 
-# SmartPSS no escribe siempre en la misma unidad: la instalacion del comedor
-# guarda AttendanceUtcTime en SEGUNDOS (1789183484) y la documentacion habla de
-# milisegundos. Leerlo en la unidad equivocada manda la marca a 1970, asi que se
-# normaliza a milisegundos dentro del propio SQL: asi el resto del sistema
-# siempre recibe milisegundos y no hay que consultar la unidad por aparte.
-# El corte esta en 10^12, que en segundos seria el ano 33658 y en milisegundos
-# el 2001: ninguna marca real cae cerca.
-UTC_EN_MS = (
-    "CASE WHEN AttendanceUtcTime > 1000000000000 "
-    "THEN AttendanceUtcTime ELSE AttendanceUtcTime * 1000 END"
-)
+# De donde sale la hora de una marca. Lo que muestra la instalacion real:
+#
+# - AttendanceUtcTime viene en SEGUNDOS (1789183484), no en milisegundos como
+#   dice la documentacion. Y cuando SmartPSS sube el historial la deja en 0:
+#   2.917 de las primeras 3.218 marcas llegaron asi.
+# - AttendanceDateTime viene siempre, porque es parte de la llave primaria. Es
+#   la hora de pared de Costa Rica escrita como si fuera un epoch UTC, en
+#   milisegundos. En las 301 marcas que traian las dos, la diferencia fue
+#   exactamente 6 horas en todas.
+#
+# Por eso se filtra y se ordena por AttendanceDateTime, que nunca falta, y la
+# hora UTC sale de AttendanceUtcTime cuando viene, o de AttendanceDateTime
+# interpretada en Costa Rica cuando no.
+#
+# Las dos se normalizan a milisegundos. El corte esta en 10^12, que en segundos
+# seria el ano 33658 y en milisegundos el 2001: ninguna marca real cae cerca.
+def _en_ms(columna: str) -> str:
+    return f"CASE WHEN {columna} > 1000000000000 THEN {columna} ELSE {columna} * 1000 END"
 
-# El SELECT devuelve la columna ya normalizada, con su mismo nombre.
+
+LOCAL_EN_MS = _en_ms("AttendanceDateTime")
+UTC_EN_MS = _en_ms("AttendanceUtcTime")
+
+# El SELECT devuelve las dos columnas ya normalizadas, con su mismo nombre.
 COLUMNAS_SELECT = [
-    f"{UTC_EN_MS} AS AttendanceUtcTime" if c == "AttendanceUtcTime" else c
+    f"{LOCAL_EN_MS} AS AttendanceDateTime" if c == "AttendanceDateTime"
+    else f"{UTC_EN_MS} AS AttendanceUtcTime" if c == "AttendanceUtcTime"
+    else c
     for c in COLUMNAS
 ]
+
+_EPOCH = datetime(1970, 1, 1)
+
+
+def local_ms_a_utc_ms(local_ms: int) -> int:
+    """AttendanceDateTime (hora de pared de Costa Rica como epoch) a epoch UTC."""
+    pared = _EPOCH + timedelta(milliseconds=int(local_ms))
+    return int(pared.replace(tzinfo=CR).timestamp() * 1000)
+
+
+def utc_ms_a_local_ms(utc_ms: int) -> int:
+    """Lo inverso: para comparar una marca de agua UTC contra AttendanceDateTime."""
+    momento = datetime.fromtimestamp(utc_ms / 1000, tz=timezone.utc).astimezone(CR)
+    return int(utc_ms + momento.utcoffset().total_seconds() * 1000)
+
+
+def utc_ms_de_la_fila(fila: dict) -> int:
+    """La hora UTC de una marca, ya con sus columnas normalizadas a milisegundos."""
+    utc = int(fila.get("AttendanceUtcTime") or 0)
+    if utc > 0:
+        return utc
+    return local_ms_a_utc_ms(fila["AttendanceDateTime"])
 
 # base.tabla o solo tabla. Nada mas: el nombre va literal en el SQL.
 NOMBRE_VALIDO = re.compile(r"^[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)?$")
@@ -114,12 +152,13 @@ def resumen_de(tabla: str) -> dict:
         muestra = []
         if total:
             cursor.execute(
-                f"SELECT MIN({UTC_EN_MS}), MAX({UTC_EN_MS}) FROM {nombre}"
+                f"SELECT MIN({LOCAL_EN_MS}), MAX({LOCAL_EN_MS}) FROM {nombre}"
             )
-            rango = cursor.fetchone()
+            menor, mayor = cursor.fetchone()
+            rango = (local_ms_a_utc_ms(menor), local_ms_a_utc_ms(mayor))
             cursor.execute(
-                f"SELECT {', '.join(COLUMNAS_SELECT)}, AttendanceDateTime FROM {nombre} "
-                f"ORDER BY {UTC_EN_MS} DESC LIMIT 3"
+                f"SELECT {', '.join(COLUMNAS_SELECT)} FROM {nombre} "
+                f"ORDER BY {LOCAL_EN_MS} DESC LIMIT 3"
             )
             campos = [c[0] for c in cursor.description]
             muestra = [dict(zip(campos, f)) for f in cursor.fetchall()]
@@ -127,13 +166,17 @@ def resumen_de(tabla: str) -> dict:
 
 
 def leer_desde(tabla: str, utc_ms: int, limite: int) -> list[dict]:
-    """Marcas con AttendanceUtcTime >= utc_ms, ya traducidas a lo que espera la ingesta."""
+    """Marcas desde ese momento UTC, ya traducidas a lo que espera la ingesta.
+
+    El filtro va sobre AttendanceDateTime porque AttendanceUtcTime puede venir
+    en 0, y una marca con 0 nunca pasaria un filtro por fecha.
+    """
     nombre = _entrecomillar(validar_nombre(tabla))
     with connection.cursor() as cursor:
         cursor.execute(
             f"SELECT {', '.join(COLUMNAS_SELECT)} FROM {nombre} "
-            f"WHERE {UTC_EN_MS} >= %s ORDER BY {UTC_EN_MS} LIMIT %s",
-            [utc_ms, limite],
+            f"WHERE {LOCAL_EN_MS} >= %s ORDER BY {LOCAL_EN_MS} LIMIT %s",
+            [utc_ms_a_local_ms(utc_ms), limite],
         )
         campos = [c[0] for c in cursor.description]
         filas = [dict(zip(campos, f)) for f in cursor.fetchall()]
@@ -146,7 +189,7 @@ def traducir(fila: dict) -> dict:
         "person_id": str(fila.get("PersonID") or ""),
         "person_name": fila.get("PersonName") or "",
         "card_no": fila.get("PerSonCardNo") or "",
-        "utc_ms": int(fila["AttendanceUtcTime"]),
+        "utc_ms": utc_ms_de_la_fila(fila),
         "state": int(fila.get("AttendanceState") or 0),
         "method": int(fila.get("AttendanceMethod") or 0),
         "device_ip": fila.get("DeviceIPAddress") or "",

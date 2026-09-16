@@ -127,7 +127,7 @@ class Command(BaseCommand):
             self.stdout.write("Ultimas marcas:")
             for fila in resumen["muestra"]:
                 momento = datetime.fromtimestamp(
-                    lector_directo.a_segundos(fila["AttendanceUtcTime"]), tz=timezone.utc
+                    lector_directo.utc_ms_de_la_fila(fila) / 1000, tz=timezone.utc
                 ).astimezone(CR)
                 self.stdout.write(
                     f"  PersonID={str(fila.get('PersonID')):<8} "
@@ -143,7 +143,12 @@ class Command(BaseCommand):
             self.stdout.write("Comprobacion de zona horaria:")
             self.stdout.write(f"  AttendanceUtcTime  = {utc} ({lector_directo.unidad(utc)})")
             self.stdout.write(f"  AttendanceDateTime = {local} ({lector_directo.unidad(local)})")
-            if local:
+            if not utc:
+                self.stdout.write(
+                    "  AttendanceUtcTime viene en 0: SmartPSS la deja asi al subir "
+                    "historial. La hora se toma de AttendanceDateTime."
+                )
+            elif local:
                 diferencia = (
                     lector_directo.a_segundos(utc) - lector_directo.a_segundos(local)
                 )

@@ -23,6 +23,8 @@ from django.db import close_old_connections
 
 log = logging.getLogger(__name__)
 
+PUESTA_AL_DIA_SEG = 30 * 60
+
 _hilo: threading.Thread | None = None
 _candado = threading.Lock()
 
@@ -33,14 +35,30 @@ def _ciclo() -> None:
     # no competir con el arranque del servidor.
     time.sleep(random.uniform(5, min(20, intervalo)))
 
+    ultima_puesta_al_dia = None
+
     while True:
         try:
             # El hilo vive horas; las conexiones que Django deja abiertas se
             # caducan del lado de MySQL y la siguiente consulta falla.
             close_old_connections()
-            from apps.marcas.importador import una_pasada
+            from apps.marcas import importador
 
-            resultado = una_pasada(settings.SMARTPSS_TABLA)
+            tabla = settings.SMARTPSS_TABLA
+            resultado = importador.una_pasada(tabla)
+
+            # Si aun asi SmartPSS tiene mas marcas que el sistema, son viejas y
+            # quedaron fuera de la ventana. Releer todo cuesta, asi que se hace
+            # a lo sumo cada media hora.
+            if importador.pendientes(tabla) and (
+                ultima_puesta_al_dia is None
+                or time.monotonic() - ultima_puesta_al_dia > PUESTA_AL_DIA_SEG
+            ):
+                ultima_puesta_al_dia = time.monotonic()
+                extra = importador.ponerse_al_dia(tabla)
+                resultado["nuevas"] += extra["nuevas"]
+                resultado["sin_empleado"] += extra["sin_empleado"]
+
             if resultado["nuevas"]:
                 log.info(
                     "SmartPSS: %s marcas nuevas, %s sin empleado",

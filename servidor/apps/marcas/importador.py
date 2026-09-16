@@ -49,11 +49,41 @@ def marca_de_agua(desde: str | None = None) -> int:
     return 0
 
 
-def una_pasada(tabla: str, desde: str | None = None) -> dict:
-    """Lee lo que haya nuevo y lo ingesta. Devuelve el conteo de la ingesta."""
+def una_pasada(tabla: str, desde: str | None = None, desde_ms: int | None = None) -> dict:
+    """Lee lo que haya nuevo y lo ingesta. Devuelve el conteo sumado de la ingesta.
+
+    Lee por lotes hasta vaciar: la primera vez SmartPSS subio mas de 3.000
+    marcas de historial de un solo golpe, y un lote unico se quedaba corto.
+    """
     lector_directo.validar_nombre(tabla)
-    marcas = lector_directo.leer_desde(tabla, marca_de_agua(desde), LOTE_MAX)
-    return ingestar(marcas)
+    punto = marca_de_agua(desde) if desde_ms is None else desde_ms
+    total = {"recibidas": 0, "nuevas": 0, "duplicadas": 0, "sin_empleado": 0}
+
+    while True:
+        marcas = lector_directo.leer_desde(tabla, punto, LOTE_MAX)
+        for clave, valor in ingestar(marcas).items():
+            total[clave] += valor
+        if len(marcas) < LOTE_MAX:
+            return total
+        siguiente = max(m["utc_ms"] for m in marcas)
+        # Sin avance no hay forma de salir: seria un lote entero en el mismo
+        # milisegundo. No pasa con marcas reales, pero no puede colgar el hilo.
+        if siguiente <= punto:
+            return total
+        punto = siguiente
+
+
+def ponerse_al_dia(tabla: str) -> dict:
+    """Relee toda la tabla. Para cuando SmartPSS sube marcas mas viejas que la ventana.
+
+    La pasada normal solo mira las ultimas horas. Si SmartPSS estuvo apagado
+    unos dias, o sube historial al activarlo, esas marcas quedan atras de la
+    ventana y nunca se leerian. Los duplicados los descarta la ingesta.
+    """
+    inicio = 0
+    if settings.SMARTPSS_FECHA_INICIO:
+        inicio = _inicio_del_dia(date.fromisoformat(settings.SMARTPSS_FECHA_INICIO))
+    return una_pasada(tabla, desde_ms=inicio)
 
 
 def pendientes(tabla: str) -> int | None:
