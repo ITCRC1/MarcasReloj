@@ -278,6 +278,11 @@ SMARTPSS_FECHA_INICIO = env("SMARTPSS_FECHA_INICIO", default="")
 # Apagarlo solo si se decide mover la lectura a un servicio o un cron propio.
 SMARTPSS_AUTO = env.bool("SMARTPSS_AUTO", default=True)
 
+# Clave con la que el sistema de planillas consulta la API. Vacia, la API
+# responde 503: no puede quedar abierta por olvido. Generarla con:
+#   python -c "import secrets; print(secrets.token_urlsafe(32))"
+API_TOKEN = env("API_TOKEN", default="")
+
 # Cada cuanto revisa si SmartPSS escribio algo nuevo.
 SMARTPSS_INTERVALO_SEG = env.int("SMARTPSS_INTERVALO_SEG", default=60)
 

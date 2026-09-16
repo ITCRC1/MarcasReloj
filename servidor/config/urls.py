@@ -6,6 +6,7 @@ from apps.marcas.views import estado_lector
 urlpatterns = [
     path("admin/", admin.site.urls),
     path("estado-lector/", estado_lector, name="estado_lector"),
+    path("api/v1/", include("apps.reportes.api")),
     path("horarios/", include("apps.horarios.urls")),
     path("marcas/", include("apps.marcas.urls")),
     path("reportes/", include("apps.reportes.urls")),
