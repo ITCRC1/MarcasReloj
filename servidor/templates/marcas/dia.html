@@ -12,6 +12,9 @@
     <div class="text-muted">{{ fecha|date:"l j \d\e F Y" }}</div>
   </div>
   <div class="btn-group no-imprimir">
+    {% if volver %}
+    <a class="btn btn-primary btn-sm" href="{{ volver }}">&larr; volver al reporte</a>
+    {% endif %}
     <a class="btn btn-outline-secondary btn-sm" href="{% url 'marcas:dia' empleado.codigo_planilla anterior|date:'Y-m-d' %}">&laquo; anterior</a>
     <a class="btn btn-outline-secondary btn-sm" href="{% url 'marcas:dia_hoy' empleado.codigo_planilla %}">hoy</a>
     <a class="btn btn-outline-secondary btn-sm" href="{% url 'marcas:dia' empleado.codigo_planilla siguiente|date:'Y-m-d' %}">siguiente &raquo;</a>
@@ -80,8 +83,25 @@
           </ul>
         {% endif %}
         <div class="text-muted small mt-2">Calculado el {{ resultado.calculado_en|date:"d/m/Y H:i" }}</div>
+        {% elif sin_horario %}
+          <div class="d-flex flex-wrap gap-4 align-items-baseline">
+            <div><span class="text-muted">Trabajado:</span>
+              <strong class="minutos">{{ sin_horario.minutos|hm_cero }}</strong></div>
+            <div>
+              {% if sin_horario.completo %}
+                <span class="badge bg-success">completo</span>
+              {% else %}
+                <span class="badge bg-danger">incompleto</span>
+                <span class="text-danger small ms-1">{{ sin_horario.observacion }}</span>
+              {% endif %}
+            </div>
+          </div>
+          <p class="text-muted small mt-2 mb-0">
+            Este empleado no tiene horario: se muestran las horas trabajadas. Las tardias
+            y horas extra se calculan al asignarle uno.
+          </p>
         {% else %}
-          <p class="text-muted mb-0">No hay resultado guardado para este dia.</p>
+          <p class="text-muted mb-0">No hay marcas este dia.</p>
         {% endif %}
       </div>
       <div class="card-footer no-imprimir">
@@ -139,7 +159,7 @@
             <tr class="collapse no-imprimir" id="anular{{ m.pk }}">
               <td colspan="6" class="bg-light">
                 <form method="post" action="{% url 'marcas:marca_anular' m.pk %}" class="row g-2 align-items-end">
-                  {% csrf_token %}
+                  {% csrf_token %}{% if volver %}<input type="hidden" name="volver" value="{{ volver }}">{% endif %}
                   <div class="col-md-9">
                     <label class="form-label small mb-0">Motivo (obligatorio)</label>
                     <input type="text" name="motivo" class="form-control form-control-sm" required>
@@ -200,7 +220,7 @@
             <tr class="collapse no-imprimir" id="anularm{{ m.pk }}">
               <td colspan="5" class="bg-light">
                 <form method="post" action="{% url 'marcas:manual_anular' m.pk %}" class="row g-2 align-items-end">
-                  {% csrf_token %}
+                  {% csrf_token %}{% if volver %}<input type="hidden" name="volver" value="{{ volver }}">{% endif %}
                   <div class="col-md-9">
                     <label class="form-label small mb-0">Motivo (obligatorio)</label>
                     <input type="text" name="motivo" class="form-control form-control-sm" required>
@@ -224,7 +244,7 @@
       <div class="card-header">Agregar marca manual</div>
       <div class="card-body">
         <form method="post" action="{% url 'marcas:marca_manual_crear' empleado.codigo_planilla fecha|date:'Y-m-d' %}">
-          {% csrf_token %}
+          {% csrf_token %}{% if volver %}<input type="hidden" name="volver" value="{{ volver }}">{% endif %}
           {% for campo in form_manual %}
             <div class="mb-2">
               <label class="form-label small mb-0">{{ campo.label }}</label>

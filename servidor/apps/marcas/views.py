@@ -41,6 +41,20 @@ def dia(request, codigo: str, fecha: str):
         if not m.get("descartada_por_duplicado")
     }
 
+    # Sin horario no hay resultado guardado, pero el dia igual se arma como en
+    # el reporte: si no, todas las marcas salian como "no cuenta" y no se veia
+    # que faltaba la salida, que es justo lo que se viene a corregir aqui.
+    sin_horario = None
+    if resultado is None:
+        from apps.motor.servicio import marcas_del_dia
+        from apps.reportes.dias import armar_dia
+
+        sin_horario = armar_dia(dia_, marcas_del_dia(empleado, dia_))
+        for entrada, salida in sin_horario.pares:
+            papeles[(entrada.origen, entrada.ref_id)] = ("entrada", salida is None)
+            if salida is not None:
+                papeles[(salida.origen, salida.ref_id)] = ("salida", False)
+
     marcas_reloj = list(
         MarcaReloj.objects.filter(empleado=empleado, fecha_local=dia_).order_by("fecha_hora")
     )
@@ -61,6 +75,8 @@ def dia(request, codigo: str, fecha: str):
             "anterior": dia_ - timedelta(days=1),
             "siguiente": dia_ + timedelta(days=1),
             "resultado": resultado,
+            "sin_horario": sin_horario,
+            "volver": _volver_seguro(request.GET.get("volver", "")),
             "horario": horario,
             "bloques": ctx.bloques,
             "es_feriado": ctx.es_feriado,
@@ -123,8 +139,21 @@ def crudas(request):
 # --------------------------------------------------------------------------
 
 
-def _volver_al_dia(empleado, fecha):
-    return redirect("marcas:dia", codigo=empleado.codigo_planilla, fecha=fecha.isoformat())
+def _volver_seguro(url: str) -> str:
+    """Solo rutas de este mismo sistema: nada de otro dominio ni javascript:."""
+    return url if url.startswith("/") and not url.startswith("//") else ""
+
+
+def _volver_al_dia(empleado, fecha, request=None):
+    from urllib.parse import urlencode
+
+    from django.urls import reverse
+
+    destino = reverse("marcas:dia", kwargs={"codigo": empleado.codigo_planilla, "fecha": fecha.isoformat()})
+    volver = _volver_seguro(request.POST.get("volver", "")) if request else ""
+    if volver:
+        destino += "?" + urlencode({"volver": volver})
+    return redirect(destino)
 
 
 @login_required
@@ -146,7 +175,7 @@ def marca_manual_crear(request, codigo: str, fecha: str):
             messages.error(request, str(error))
     else:
         messages.error(request, "Revise el formulario: " + form.errors.as_text())
-    return _volver_al_dia(empleado, dia_)
+    return _volver_al_dia(empleado, dia_, request)
 
 
 @login_required
@@ -166,7 +195,7 @@ def marca_anular(request, pk: int):
     else:
         messages.error(request, "El motivo es obligatorio.")
     if marca.empleado_id:
-        return _volver_al_dia(marca.empleado, marca.fecha_local)
+        return _volver_al_dia(marca.empleado, marca.fecha_local, request)
     return redirect("marcas:crudas")
 
 
@@ -182,7 +211,7 @@ def manual_anular(request, pk: int):
             messages.error(request, str(error))
     else:
         messages.error(request, "El motivo es obligatorio.")
-    return _volver_al_dia(manual.empleado, manual.fecha_local)
+    return _volver_al_dia(manual.empleado, manual.fecha_local, request)
 
 
 @login_required
@@ -197,4 +226,4 @@ def recalcular_dia(request, codigo: str, fecha: str):
         )
     else:
         messages.success(request, "Dia recalculado.")
-    return _volver_al_dia(empleado, dia_)
+    return _volver_al_dia(empleado, dia_, request)

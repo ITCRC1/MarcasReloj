@@ -79,7 +79,15 @@
             </td>
           {% endfor %}
           <td class="minutos">{{ d.minutos|hm_cero }}</td>
-          <td class="small {% if not d.completo %}text-danger fw-semibold{% endif %}">{{ d.observacion }}</td>
+          <td class="small {% if not d.completo %}text-danger fw-semibold{% endif %}">
+            {{ d.observacion }}
+            {% if p.codigo %}
+              <a class="btn btn-sm {% if d.completo %}btn-link p-0 ms-1{% else %}btn-danger py-0 ms-2{% endif %} no-imprimir"
+                 href="{% url 'marcas:dia' p.codigo d.fecha|date:'Y-m-d' %}?volver={{ request.get_full_path|urlencode }}">
+                {% if d.completo %}ver{% else %}Corregir{% endif %}
+              </a>
+            {% endif %}
+          </td>
         </tr>
       {% endfor %}
       </tbody>

@@ -156,3 +156,51 @@ def test_el_excel_trae_las_mismas_columnas_y_horas_sumables(cliente, con_marcas)
     assert horas.number_format == "[h]:mm"
     # Excel la guarda como duracion, no como texto: por eso se puede sumar.
     assert horas.value == timedelta(minutes=736)
+
+
+# --------------------------------------------------------------------------
+# Corregir un dia incompleto desde el reporte
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_el_dia_incompleto_trae_boton_para_corregir(cliente, con_marcas):
+    r = cliente.get("/reportes/", {"desde": "2026-09-15", "hasta": "2026-09-15"})
+    html = r.content.decode()
+    assert "/marcas/dia/16/2026-09-15/?volver=" in html
+    assert "Corregir" in html
+
+
+@pytest.mark.django_db
+def test_sin_horario_la_pantalla_del_dia_muestra_entrada_y_falta_de_salida(cliente, con_marcas):
+    """Antes todas las marcas salian como 'no cuenta' y no se veia que corregir."""
+    r = cliente.get("/marcas/dia/16/2026-09-15/")
+    assert r.status_code == 200
+    [marca] = r.context["marcas_reloj"]
+    assert marca.papel == "entrada"
+    assert marca.sin_pareja is True
+    assert r.context["sin_horario"].completo is False
+    assert "falta la salida" in r.content.decode()
+
+
+@pytest.mark.django_db
+def test_agregar_la_salida_completa_el_dia_y_vuelve_al_reporte(cliente, con_marcas):
+    volver = "/reportes/?desde=2026-09-15&hasta=2026-09-15"
+    r = cliente.post("/marcas/dia/16/2026-09-15/manual/", {
+        "hora": "14:00", "motivo": "olvido", "detalle": "Confirmado con el supervisor.", "volver": volver,
+    })
+    assert r.status_code == 302
+    assert "volver=" in r["Location"]
+
+    reporte = cliente.get(volver)
+    brayan = next(p for p in reporte.context["personas"] if p.person_id == "16")
+    assert brayan.dias[0].completo
+    assert brayan.minutos == 8 * 60 + 11
+    assert "manual" in brayan.dias[0].observacion
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("malo", ["https://otro.com/", "//otro.com/", "javascript:alert(1)"])
+def test_el_enlace_de_volver_no_lleva_fuera_del_sistema(cliente, con_marcas, malo):
+    r = cliente.get("/marcas/dia/16/2026-09-15/", {"volver": malo})
+    assert r.context["volver"] == ""
