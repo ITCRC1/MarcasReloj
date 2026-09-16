@@ -209,8 +209,9 @@ def test_no_se_acepta_un_nombre_de_tabla_peligroso(db):
 @pytest.mark.django_db
 def test_el_comando_avisa_si_no_hay_tabla_configurada(db, maria):
     from django.core.management.base import CommandError
+    from django.test import override_settings
 
-    with pytest.raises(CommandError, match="SMARTPSS_TABLA"):
+    with override_settings(SMARTPSS_TABLA=""), pytest.raises(CommandError, match="SMARTPSS_TABLA"):
         call_command("leer_smartpss", verbosity=0)
 
 

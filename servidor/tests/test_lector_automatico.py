@@ -119,3 +119,35 @@ def test_pendientes_no_revienta_si_la_tabla_no_existe(db):
     """El tablero tiene que abrir aunque la configuracion este mal."""
     assert importador.pendientes("") is None
     assert importador.pendientes("tabla_que_no_existe") is None
+
+
+# --------------------------------------------------------------------------
+# Pagina de estado y arranque de respaldo
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_la_pagina_de_estado_no_pide_sesion_ni_muestra_marcas(client, tabla_smartpss, maria):  # noqa: F811
+    escribir_marca("1024", LUNES, time(8, 0))
+    with override_settings(SMARTPSS_TABLA=TABLA):
+        respuesta = client.get("/estado-lector/")
+    assert respuesta.status_code == 200
+    datos = respuesta.json()
+    assert datos["sin_importar"] == 1
+    assert "hilo_vivo" in datos and "ultimo_error" in datos
+    assert "Maria" not in respuesta.content.decode()
+
+
+def test_la_tabla_tiene_el_nombre_de_smartpss_por_defecto():
+    """Faltaba la variable en Railway y el lector nunca arranco."""
+    from django.conf import settings
+
+    assert settings.SMARTPSS_TABLA == "AttendanceRecordInfo"
+
+
+@pytest.mark.django_db
+def test_el_respaldo_no_levanta_hilos_durante_las_pruebas(client, monkeypatch):
+    llamadas = []
+    monkeypatch.setattr(lector_automatico, "arrancar", lambda: llamadas.append(1))
+    client.get("/entrar/")
+    assert llamadas == []

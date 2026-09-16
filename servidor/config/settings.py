@@ -71,6 +71,7 @@ MIDDLEWARE = [
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
+    "apps.marcas.lector_automatico.ArrancarLectorMiddleware",
 ]
 
 ROOT_URLCONF = "config.urls"
@@ -261,7 +262,9 @@ MESSAGE_STORAGE = "django.contrib.messages.storage.session.SessionStorage"
 # Nombre de la tabla que SmartPSS creo en esta misma base. Se averigua con
 # `manage.py leer_smartpss --explorar`. Se puede calificar con la base
 # ("otra_base.asistencia") si esta en otra del mismo servidor.
-SMARTPSS_TABLA = env("SMARTPSS_TABLA", default="")
+# Por defecto es el nombre que SmartPSS Lite usa siempre: depender de que alguien
+# configure la variable dejo al sistema sin importar marcas sin que se notara.
+SMARTPSS_TABLA = env("SMARTPSS_TABLA", default="AttendanceRecordInfo")
 
 # Cuanto se relee hacia atras en cada pasada. SmartPSS puede escribir marcas con
 # horas pasadas cuando vuelve de estar cerrado.

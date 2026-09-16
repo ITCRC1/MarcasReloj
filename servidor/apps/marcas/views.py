@@ -74,6 +74,26 @@ def dia(request, codigo: str, fecha: str):
     )
 
 
+def estado_lector(request):
+    """Si el lector automatico corre en este proceso. Sin sesion, para revisarlo de afuera.
+
+    No muestra marcas ni nombres: solo si el hilo vive, cuando leyo por ultima
+    vez, el ultimo error y cuantas marcas faltan por importar.
+    """
+    from django.conf import settings
+    from django.http import JsonResponse
+
+    from apps.marcas import importador, lector_automatico
+
+    return JsonResponse({
+        "hilo_vivo": lector_automatico.esta_vivo(),
+        "lectura_automatica": settings.SMARTPSS_AUTO,
+        "tabla": settings.SMARTPSS_TABLA,
+        "sin_importar": importador.pendientes(settings.SMARTPSS_TABLA),
+        **lector_automatico.ESTADO,
+    })
+
+
 @login_required
 def dia_de_hoy(request, codigo: str):
     return redirect("marcas:dia", codigo=codigo, fecha=timezone.localdate().isoformat())

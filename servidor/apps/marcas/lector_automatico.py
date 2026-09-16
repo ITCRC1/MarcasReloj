@@ -15,6 +15,7 @@ arranque es para que no consulten todos en el mismo instante.
 
 import logging
 import random
+import sys
 import threading
 import time
 
@@ -27,6 +28,27 @@ PUESTA_AL_DIA_SEG = 30 * 60
 
 _hilo: threading.Thread | None = None
 _candado = threading.Lock()
+
+# Lo que se sabe del lector en este proceso. Lo muestra /estado-lector/, porque
+# la vez que no arranco no hubo forma de saberlo sin entrar a la bitacora.
+ESTADO = {
+    "no_arranco_porque": "",
+    "arrancado_en": None,
+    "ultima_pasada": None,
+    "nuevas_en_la_ultima": 0,
+    "ultimo_error": "",
+    "ultimo_error_en": None,
+}
+
+
+def _ahora() -> str:
+    from django.utils import timezone
+
+    return timezone.localtime().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def esta_vivo() -> bool:
+    return _hilo is not None and _hilo.is_alive()
 
 
 def _ciclo() -> None:
@@ -59,16 +81,38 @@ def _ciclo() -> None:
                 resultado["nuevas"] += extra["nuevas"]
                 resultado["sin_empleado"] += extra["sin_empleado"]
 
+            ESTADO["ultima_pasada"] = _ahora()
+            ESTADO["nuevas_en_la_ultima"] = resultado["nuevas"]
             if resultado["nuevas"]:
                 log.info(
                     "SmartPSS: %s marcas nuevas, %s sin empleado",
                     resultado["nuevas"], resultado["sin_empleado"],
                 )
-        except Exception:  # noqa: BLE001 - un fallo no puede matar el hilo
+        except Exception as error:  # noqa: BLE001 - un fallo no puede matar el hilo
+            # Solo el tipo y el mensaje: la pagina de estado no pide sesion.
+            ESTADO["ultimo_error"] = f"{type(error).__name__}: {str(error)[:200]}"
+            ESTADO["ultimo_error_en"] = _ahora()
             log.exception("SmartPSS: fallo una pasada de lectura")
         finally:
             close_old_connections()
         time.sleep(intervalo)
+
+
+class ArrancarLectorMiddleware:
+    """Respaldo: si el lector no arranco con el servidor, arranca con la primera visita.
+
+    La deteccion de arranque mira como se lanzo el proceso, y una vez en Railway
+    el lector no corrio sin que quedara claro por que. Con esto basta que alguien
+    abra cualquier pagina. Revisar si el hilo vive no cuesta nada.
+    """
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if not esta_vivo() and "pytest" not in sys.modules:
+            arrancar()
+        return self.get_response(request)
 
 
 def debe_arrancar() -> tuple[bool, str]:
@@ -86,14 +130,17 @@ def arrancar() -> bool:
 
     puede, motivo = debe_arrancar()
     if not puede:
-        log.info("SmartPSS: no se lee automaticamente porque %s", motivo)
+        ESTADO["no_arranco_porque"] = motivo
+        log.warning("SmartPSS: no se lee automaticamente porque %s", motivo)
         return False
 
     with _candado:
-        if _hilo is not None and _hilo.is_alive():
+        if esta_vivo():
             return True
         _hilo = threading.Thread(target=_ciclo, name="leer-smartpss", daemon=True)
         _hilo.start()
+        ESTADO["no_arranco_porque"] = ""
+        ESTADO["arrancado_en"] = _ahora()
 
     log.info(
         "SmartPSS: leyendo '%s' cada %s s",
