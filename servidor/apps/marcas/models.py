@@ -83,10 +83,11 @@ class MarcaReloj(models.Model):
         return a_local(self.fecha_hora)
 
     # Que significa cada AttendanceMethod no viene en la tabla ni lo dice
-    # SmartPSS. El reloj del comedor manda 4. Mientras no este confirmado con
-    # el equipo, se muestra el numero tal cual en vez de inventarle un nombre:
-    # decir "clave" donde fue la cara seria peor que no decir nada.
-    METODOS: dict[int, str] = {}
+    # SmartPSS. Los relojes solo aceptan huella o contrasena, y en las primeras
+    # 3.218 marcas el 4 lo usaban 59 personas (52 de forma exclusiva) y el 18
+    # solo 12: cinco siempre, y otras de vez en cuando, como cuando la huella no
+    # lee. Otro codigo que aparezca se muestra con su numero, no se adivina.
+    METODOS: dict[int, str] = {4: "huella", 18: "contraseña"}
 
     @property
     def metodo_legible(self) -> str:
