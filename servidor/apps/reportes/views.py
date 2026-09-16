@@ -74,6 +74,72 @@ def _totales_por_empleado(desde: date, hasta: date, empleados):
 
 
 @login_required
+def marcas(request):
+    """El reporte de asistencia: por persona, una fila por dia con sus marcas en columnas."""
+    from apps.marcas.models import MarcaManual, MarcaReloj
+    from apps.reportes import dias as armado
+
+    desde, hasta = _rango(request)
+    buscar = request.GET.get("buscar", "").strip()
+    solo_incompletos = bool(request.GET.get("incompletos"))
+
+    reloj = (
+        MarcaReloj.objects.filter(fecha_local__range=(desde, hasta), anulada=False)
+        .select_related("empleado")
+    )
+    manuales = (
+        MarcaManual.objects.filter(fecha_local__range=(desde, hasta), anulada=False)
+        .select_related("empleado")
+    )
+    if buscar:
+        filtro = Q(person_name__icontains=buscar) | Q(person_id=buscar) | Q(
+            empleado__nombre__icontains=buscar
+        ) | Q(empleado__codigo_planilla=buscar)
+        reloj = reloj.filter(filtro)
+        manuales = manuales.filter(
+            Q(empleado__nombre__icontains=buscar)
+            | Q(empleado__codigo_planilla=buscar)
+            | Q(empleado__person_id_smartpss=buscar)
+        )
+
+    personas = armado.armar_personas(reloj, manuales)
+    if solo_incompletos:
+        for p in personas:
+            p.dias = [d for d in p.dias if not d.completo]
+        personas = [p for p in personas if p.dias]
+
+    pares = armado.columnas_de_marcas(personas)
+
+    if request.GET.get("formato") == "excel":
+        return _marcas_excel(desde, hasta, personas, pares)
+
+    for p in personas:
+        for d in p.dias:
+            # Relleno para que todas las filas tengan las mismas columnas.
+            d.celdas = [
+                celda
+                for i in range(pares)
+                for celda in (d.pares[i] if i < len(d.pares) else (None, None))
+            ]
+
+    return render(
+        request,
+        "reportes/marcas.html",
+        {
+            "desde": desde,
+            "hasta": hasta,
+            "buscar": buscar,
+            "solo_incompletos": solo_incompletos,
+            "personas": personas,
+            "encabezados": [f"{t}{i}" for i in range(1, pares + 1) for t in ("E", "S")],
+            "total_minutos": sum(p.minutos for p in personas),
+            "total_dias": sum(len(p.dias) for p in personas),
+            "total_incompletos": sum(p.incompletos for p in personas),
+        },
+    )
+
+
+@login_required
 def reporte(request):
     """Resumen del rango: una fila por empleado."""
     desde, hasta = _rango(request)
@@ -151,6 +217,80 @@ def detalle_empleado(request, codigo: str):
 # --------------------------------------------------------------------------
 # Excel
 # --------------------------------------------------------------------------
+
+
+DIAS_SEMANA = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"]
+
+
+def _marcas_excel(desde, hasta, personas, pares):
+    """Dos hojas: el detalle por dia con subtotal por persona, y el resumen."""
+    from apps.core.tiempo import a_local
+
+    libro, hoja = exportar.hoja_nueva("Detalle")
+    hoja["A1"] = "Reporte de asistencia"
+    hoja["A1"].font = exportar.Font(bold=True, size=14)
+    hoja["A2"] = f"Del {desde:%d/%m/%Y} al {hasta:%d/%m/%Y}"
+
+    marcas_cols = [f"{t}{i}" for i in range(1, pares + 1) for t in ("E", "S")]
+    columnas = ["PersonID", "Codigo", "Nombre", "Fecha", "Dia", *marcas_cols, "Horas", "Observacion"]
+    exportar.escribir_encabezado(hoja, columnas, fila=4)
+    col_horas = 6 + len(marcas_cols)
+    negrita = exportar.Font(bold=True)
+    gris = exportar.PatternFill("solid", fgColor="E7E6E6")
+    rojo = exportar.Font(color="C00000")
+
+    fila = 5
+    for p in personas:
+        for d in p.dias:
+            hoja.cell(row=fila, column=1, value=p.person_id)
+            hoja.cell(row=fila, column=2, value=p.codigo)
+            hoja.cell(row=fila, column=3, value=p.nombre)
+            celda = hoja.cell(row=fila, column=4, value=d.fecha)
+            celda.number_format = "dd/mm/yyyy"
+            hoja.cell(row=fila, column=5, value=DIAS_SEMANA[d.fecha.weekday()])
+            col = 6
+            for i in range(pares):
+                entrada, salida = d.pares[i] if i < len(d.pares) else (None, None)
+                for marca in (entrada, salida):
+                    if marca is not None:
+                        texto = f"{a_local(marca.hora):%H:%M}"
+                        if marca.origen == "manual":
+                            texto += " ✎"
+                        hoja.cell(row=fila, column=col, value=texto)
+                    col += 1
+            exportar.escribir_tiempo(hoja, fila, col_horas, d.minutos)
+            obs = hoja.cell(row=fila, column=col_horas + 1, value=d.observacion)
+            if not d.completo:
+                obs.font = rojo
+            fila += 1
+
+        hoja.cell(row=fila, column=3, value=f"Total {p.nombre}").font = negrita
+        hoja.cell(row=fila, column=4, value=f"{len(p.dias)} dia(s)").font = negrita
+        exportar.escribir_tiempo(hoja, fila, col_horas, p.minutos)
+        hoja.cell(row=fila, column=col_horas).font = negrita
+        if p.incompletos:
+            hoja.cell(row=fila, column=col_horas + 1, value=f"{p.incompletos} dia(s) incompleto(s)").font = rojo
+        for c in range(1, col_horas + 2):
+            hoja.cell(row=fila, column=c).fill = gris
+        fila += 2
+
+    exportar.ajustar_anchos(hoja, [10, 10, 34, 12, 6] + [8] * len(marcas_cols) + [10, 45])
+
+    resumen = libro.create_sheet("Resumen")
+    resumen["A1"] = f"Resumen del {desde:%d/%m/%Y} al {hasta:%d/%m/%Y}"
+    resumen["A1"].font = exportar.Font(bold=True, size=13)
+    exportar.escribir_encabezado(
+        resumen, ["PersonID", "Codigo", "Nombre", "Dias con marcas", "Dias incompletos", "Horas"], fila=3
+    )
+    fila = 4
+    for p in personas:
+        for i, valor in enumerate([p.person_id, p.codigo, p.nombre, len(p.dias), p.incompletos], start=1):
+            resumen.cell(row=fila, column=i, value=valor)
+        exportar.escribir_tiempo(resumen, fila, 6, p.minutos)
+        fila += 1
+    exportar.ajustar_anchos(resumen, [10, 10, 34, 16, 16, 10])
+
+    return exportar.respuesta_excel(libro, f"asistencia-{desde}-{hasta}")
 
 
 def _resumen_excel(desde, hasta, filas, totales):
