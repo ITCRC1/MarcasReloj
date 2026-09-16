@@ -5,7 +5,7 @@ from apps.marcas.models import MOTIVOS_MANUAL
 
 class MarcaManualForm(forms.Form):
     hora = forms.TimeField(
-        label="Hora",
+        label="Hora (formato 24 horas: 2 de la tarde es 14:00)",
         widget=forms.TimeInput(attrs={"type": "time", "class": "form-control"}),
     )
     motivo = forms.ChoiceField(

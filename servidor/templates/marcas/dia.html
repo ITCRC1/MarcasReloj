@@ -31,6 +31,8 @@
           <span class="badge bg-{{ resultado.estado|color_estado }}">
             {{ resultado.estado|icono_estado }} {{ resultado.get_estado_display }}
           </span>
+        {% elif not horario %}
+          <span class="badge bg-secondary">sin horario</span>
         {% else %}
           <span class="badge bg-secondary">sin calcular</span>
         {% endif %}
@@ -43,6 +45,8 @@
               <span class="bloque-horario">{{ b.entrada|time:"H:i" }} – {{ b.salida|time:"H:i" }}</span>
             {% endfor %}
             <span class="text-muted small ms-2">({{ horario.nombre }})</span>
+          {% elif not horario %}
+            <span class="dia-libre">sin horario asignado</span>
           {% else %}
             <span class="dia-libre">dia libre</span>
           {% endif %}

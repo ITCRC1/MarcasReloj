@@ -139,6 +139,30 @@ def crudas(request):
 # --------------------------------------------------------------------------
 
 
+def _como_quedo(empleado, dia_, manual) -> str:
+    """Dice como conto la marca nueva y cuanto quedo trabajado.
+
+    Una hora mal escrita (02:00 en vez de 14:00) se veia recien al notar que
+    el total no cuadraba. Diciendolo en el mensaje se nota en el momento.
+    """
+    from apps.core.tiempo import formato_hm
+    from apps.motor.servicio import marcas_del_dia
+    from apps.reportes.dias import armar_dia
+
+    dia = armar_dia(dia_, marcas_del_dia(empleado, dia_))
+    papel = "no cuenta (repetida)"
+    for entrada, salida in dia.pares:
+        if (entrada.origen, entrada.ref_id) == ("manual", manual.pk):
+            papel = "entrada"
+        if salida is not None and (salida.origen, salida.ref_id) == ("manual", manual.pk):
+            papel = "salida"
+    estado = "completo" if dia.completo else "todavia incompleto"
+    return (
+        f"Marca manual de las {manual.hora_local:%H:%M} agregada: cuenta como {papel}. "
+        f"El dia queda {estado}, con {formato_hm(dia.minutos)} trabajadas."
+    )
+
+
 def _volver_seguro(url: str) -> str:
     """Solo rutas de este mismo sistema: nada de otro dominio ni javascript:."""
     return url if url.startswith("/") and not url.startswith("//") else ""
@@ -163,14 +187,14 @@ def marca_manual_crear(request, codigo: str, fecha: str):
     form = MarcaManualForm(request.POST)
     if form.is_valid():
         try:
-            crear_marca_manual(
+            manual = crear_marca_manual(
                 empleado=empleado,
                 fecha_hora=datetime_local(dia_, form.cleaned_data["hora"]),
                 motivo=form.cleaned_data["motivo"],
                 detalle=form.cleaned_data["detalle"],
                 usuario=request.user,
             )
-            messages.success(request, "Marca manual agregada. El dia se recalculo.")
+            messages.success(request, _como_quedo(empleado, dia_, manual))
         except ValueError as error:
             messages.error(request, str(error))
     else:

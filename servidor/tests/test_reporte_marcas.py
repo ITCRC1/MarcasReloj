@@ -204,3 +204,15 @@ def test_agregar_la_salida_completa_el_dia_y_vuelve_al_reporte(cliente, con_marc
 def test_el_enlace_de_volver_no_lleva_fuera_del_sistema(cliente, con_marcas, malo):
     r = cliente.get("/marcas/dia/16/2026-09-15/", {"volver": malo})
     assert r.context["volver"] == ""
+
+
+@pytest.mark.django_db
+def test_el_mensaje_delata_una_hora_mal_escrita(cliente, con_marcas):
+    """Brayan, 15/09: se escribio 02:00 queriendo decir 14:00 y el total dio 3:49."""
+    r = cliente.post("/marcas/dia/16/2026-09-15/manual/", {
+        "hora": "02:00", "motivo": "olvido", "detalle": "Olvido marcar",
+    }, follow=True)
+    mensaje = [str(m) for m in r.context["messages"]][0]
+    assert "02:00" in mensaje
+    assert "cuenta como entrada" in mensaje
+    assert "3:49" in mensaje
