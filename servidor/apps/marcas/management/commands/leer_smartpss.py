@@ -74,7 +74,7 @@ class Command(BaseCommand):
             f"{momento}  leidas {resultado['recibidas']}, "
             f"nuevas {resultado['nuevas']}, "
             f"duplicadas {resultado['duplicadas']}, "
-            f"sin empleado {resultado['sin_empleado']}"
+            f"empleados nuevos {resultado['empleados_creados']}"
         )
         estilo = self.style.SUCCESS if resultado["nuevas"] else self.style.HTTP_INFO
         self.stdout.write(estilo(mensaje))

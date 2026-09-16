@@ -79,14 +79,14 @@ def _ciclo() -> None:
                 ultima_puesta_al_dia = time.monotonic()
                 extra = importador.ponerse_al_dia(tabla)
                 resultado["nuevas"] += extra["nuevas"]
-                resultado["sin_empleado"] += extra["sin_empleado"]
+                resultado["empleados_creados"] += extra["empleados_creados"]
 
             ESTADO["ultima_pasada"] = _ahora()
             ESTADO["nuevas_en_la_ultima"] = resultado["nuevas"]
-            if resultado["nuevas"]:
+            if resultado["nuevas"] or resultado["empleados_creados"]:
                 log.info(
-                    "SmartPSS: %s marcas nuevas, %s sin empleado",
-                    resultado["nuevas"], resultado["sin_empleado"],
+                    "SmartPSS: %s marcas nuevas, %s empleados nuevos",
+                    resultado["nuevas"], resultado["empleados_creados"],
                 )
         except Exception as error:  # noqa: BLE001 - un fallo no puede matar el hilo
             # Solo el tipo y el mensaje: la pagina de estado no pide sesion.

@@ -1,7 +1,7 @@
 """Ingesta de marcas y correcciones."""
 
 import logging
-from datetime import datetime
+from datetime import date, datetime
 
 from django.db import transaction
 from django.utils import timezone
@@ -14,10 +14,94 @@ from apps.motor.servicio import recalcular, recalcular_dias
 log = logging.getLogger(__name__)
 
 
+def _codigo_libre(person_id: str, ocupados: set[str]) -> str:
+    """El codigo de planilla es el PersonID ("Num. empleado" en SmartPSS).
+
+    Si ya lo usa otro empleado creado a mano, se marca de donde viene en vez de
+    fallar: la marca no puede quedarse sin dueno por un choque de codigos.
+    """
+    return person_id if person_id not in ocupados else f"SMARTPSS-{person_id}"
+
+
+def asegurar_empleados(marcas: list[dict], empleados: dict[str, Empleado]) -> int:
+    """Crea el empleado de cada PersonID que el sistema todavia no conoce.
+
+    Los usuarios del reloj son los empleados del sistema: nadie tiene que
+    cargarlos dos veces. Se crean con el nombre que trae el reloj y con la
+    fecha de su primera marca como ingreso. Horario, departamento y lo demas se
+    completan despues en la pantalla del empleado.
+    """
+    nuevos: dict[str, tuple[str, date]] = {}
+    for cruda in marcas:
+        person_id = str(cruda.get("person_id") or "")
+        if not person_id or person_id in empleados:
+            continue
+        fecha = fecha_local(utc_ms_a_datetime(int(cruda["utc_ms"])))
+        nombre = (cruda.get("person_name") or "").strip() or f"PersonID {person_id}"
+        anterior = nuevos.get(person_id)
+        if anterior is None or fecha < anterior[1]:
+            nuevos[person_id] = (nombre, fecha)
+
+    if not nuevos:
+        return 0
+
+    ocupados = set(
+        Empleado.objects.filter(codigo_planilla__in=list(nuevos)).values_list(
+            "codigo_planilla", flat=True
+        )
+    )
+    for person_id, (nombre, fecha) in nuevos.items():
+        empleados[person_id] = Empleado.objects.create(
+            codigo_planilla=_codigo_libre(person_id, ocupados),
+            nombre=nombre[:120],
+            person_id_smartpss=person_id,
+            fecha_ingreso=fecha,
+        )
+    log.info("Se crearon %s empleado(s) nuevos desde el reloj", len(nuevos))
+    return len(nuevos)
+
+
+@transaction.atomic
+def adoptar_marcas_sin_empleado() -> int:
+    """Da dueno a las marcas que llegaron antes de que existiera su empleado.
+
+    Cubre las marcas importadas cuando el sistema todavia no creaba empleados
+    solo. Devuelve cuantos empleados creo. Si no hay huerfanas no hace nada.
+    """
+    from django.db.models import Max, Min
+
+    huerfanas = (
+        MarcaReloj.objects.filter(empleado__isnull=True)
+        .exclude(person_id="")
+        .values("person_id")
+        .annotate(nombre=Max("person_name"), primera=Min("utc_ms"))
+    )
+    if not huerfanas:
+        return 0
+
+    empleados = {
+        e.person_id_smartpss: e
+        for e in Empleado.objects.filter(person_id_smartpss__isnull=False)
+    }
+    creados = asegurar_empleados(
+        [
+            {"person_id": h["person_id"], "person_name": h["nombre"], "utc_ms": h["primera"]}
+            for h in huerfanas
+        ],
+        empleados,
+    )
+    for h in huerfanas:
+        mapear_person_id(empleados[h["person_id"]], h["person_id"])
+    return creados
+
+
 @transaction.atomic
 def ingestar(marcas: list[dict]) -> dict:
     """Guarda un lote de marcas de SmartPSS. Reenviarlas no duplica nada."""
-    contador = {"recibidas": len(marcas), "nuevas": 0, "duplicadas": 0, "sin_empleado": 0}
+    contador = {
+        "recibidas": len(marcas), "nuevas": 0, "duplicadas": 0,
+        "sin_empleado": 0, "empleados_creados": 0,
+    }
     if not marcas:
         return contador
 
@@ -25,6 +109,7 @@ def ingestar(marcas: list[dict]) -> dict:
         e.person_id_smartpss: e
         for e in Empleado.objects.filter(person_id_smartpss__isnull=False)
     }
+    contador["empleados_creados"] = asegurar_empleados(marcas, empleados)
 
     # Se arma todo en memoria y se guarda en bloque. Guardarlas una por una
     # eran varios viajes a la base por marca: con las 3.218 del historial la
@@ -81,7 +166,9 @@ def mapear_person_id(empleado: Empleado, person_id: str) -> int:
     huerfanas = MarcaReloj.objects.filter(person_id=person_id, empleado__isnull=True)
     fechas = set(huerfanas.values_list("fecha_local", flat=True))
     actualizadas = huerfanas.update(empleado=empleado)
-    recalcular_dias((empleado, f) for f in fechas)
+    # Sin horario no hay nada que calcular: se calcula al asignarlo.
+    if empleado.horario_id:
+        recalcular_dias((empleado, f) for f in fechas)
     return actualizadas
 
 

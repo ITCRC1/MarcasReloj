@@ -140,12 +140,12 @@ def test_una_marca_nueva_se_agrega_y_recalcula(tabla_smartpss, maria):
 
 
 @pytest.mark.django_db
-def test_un_person_id_sin_mapear_queda_sin_empleado(tabla_smartpss, maria):
+def test_un_person_id_nuevo_llega_con_su_empleado_creado(tabla_smartpss, maria):
     escribir_marca("9999", LUNES, time(8, 0), nombre="Rodrigo Nunez")
     call_command("leer_smartpss", tabla=TABLA, verbosity=0)
     marca = MarcaReloj.objects.get()
-    assert marca.empleado is None
-    assert marca.person_name == "Rodrigo Nunez"
+    assert marca.empleado.nombre == "Rodrigo Nunez"
+    assert marca.empleado.codigo_planilla == "9999"
 
 
 @pytest.mark.django_db

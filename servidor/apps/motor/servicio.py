@@ -115,7 +115,11 @@ def recalcular(empleado: Empleado, fecha: date) -> ResultadoDiario | None:
     Devuelve None cuando no corresponde guardar nada: empleado que no estaba
     contratado, o una ausencia de hoy o del futuro.
     """
-    if not empleado.trabajaba_en(fecha):
+    # Sin horario no hay contra que medir tardias ni extras. Los empleados se
+    # crean solos desde el reloj y casi todos empiezan asi: calcularlos llenaba
+    # el tablero de advertencias falsas de "trabajo en dia libre". Las horas
+    # trabajadas igual salen en el reporte, que no depende del horario.
+    if not empleado.trabajaba_en(fecha) or empleado.horario_id is None:
         ResultadoDiario.objects.filter(empleado=empleado, fecha=fecha).delete()
         return None
 
@@ -162,6 +166,25 @@ def recalcular_rango(desde: date, hasta: date, empleados=None) -> int:
             if recalcular(empleado, desde + timedelta(days=i)) is not None:
                 guardados += 1
     return guardados
+
+
+def recalcular_empleado(empleado: Empleado) -> int:
+    """Recalcula todos los dias con marcas de un empleado. Para cuando cambia su horario."""
+    from django.db.models import Max, Min
+
+    from apps.marcas.models import MarcaManual, MarcaReloj
+
+    extremos = [
+        MarcaReloj.objects.filter(empleado=empleado).aggregate(a=Min("fecha_local"), b=Max("fecha_local")),
+        MarcaManual.objects.filter(empleado=empleado).aggregate(a=Min("fecha_local"), b=Max("fecha_local")),
+    ]
+    inicios = [e["a"] for e in extremos if e["a"]]
+    if not inicios:
+        return 0
+    # Hasta ayer como minimo: los dias sin marcas cuentan como ausencia, y eso
+    # solo se sabe con horario, que es justo lo que acaba de cambiar.
+    fin = max([e["b"] for e in extremos if e["b"]] + [timezone.localdate() - timedelta(days=1)])
+    return recalcular_rango(max(min(inicios), empleado.fecha_ingreso), fin, [empleado])
 
 
 def recalcular_dias(pares) -> int:

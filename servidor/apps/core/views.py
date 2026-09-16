@@ -85,6 +85,11 @@ def empleado_form(request, pk=None):
     if request.method == "POST" and form.is_valid():
         obj = form.save()
         messages.success(request, f"Empleado {obj.codigo_planilla} guardado.")
+        if pk and {"horario", "fecha_ingreso", "fecha_salida"} & set(form.changed_data):
+            from apps.motor.servicio import recalcular_empleado
+
+            dias = recalcular_empleado(obj)
+            messages.info(request, f"Se recalcularon {dias} dia(s) con el horario nuevo.")
         return redirect("core:empleado_detalle", pk=obj.pk)
     return render(request, "core/empleado_form.html", {"form": form, "empleado": empleado})
 

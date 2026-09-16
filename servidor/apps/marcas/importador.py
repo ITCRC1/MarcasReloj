@@ -14,7 +14,7 @@ from django.db.models import Max
 from apps.core.tiempo import CR
 from apps.marcas import lector_directo
 from apps.marcas.models import MarcaReloj
-from apps.marcas.servicio import ingestar
+from apps.marcas.servicio import adoptar_marcas_sin_empleado, ingestar
 
 LOTE_MAX = 2000
 
@@ -57,12 +57,16 @@ def una_pasada(tabla: str, desde: str | None = None, desde_ms: int | None = None
     """
     lector_directo.validar_nombre(tabla)
     punto = marca_de_agua(desde) if desde_ms is None else desde_ms
-    total = {"recibidas": 0, "nuevas": 0, "duplicadas": 0, "sin_empleado": 0}
+    total = {
+        "recibidas": 0, "nuevas": 0, "duplicadas": 0, "sin_empleado": 0,
+        # Marcas importadas antes de que los empleados se crearan solos.
+        "empleados_creados": adoptar_marcas_sin_empleado(),
+    }
 
     while True:
         marcas = lector_directo.leer_desde(tabla, punto, LOTE_MAX)
         for clave, valor in ingestar(marcas).items():
-            total[clave] += valor
+            total[clave] = total.get(clave, 0) + valor
         if len(marcas) < LOTE_MAX:
             return total
         siguiente = max(m["utc_ms"] for m in marcas)
