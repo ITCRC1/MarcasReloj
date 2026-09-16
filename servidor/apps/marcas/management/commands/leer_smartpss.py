@@ -136,32 +136,11 @@ class Command(BaseCommand):
                     f"dispositivo={fila.get('DeviceName') or '-'}"
                 )
 
-            primera = resumen["muestra"][0]
-            utc = primera.get("AttendanceUtcTime")
-            local = primera.get("AttendanceDateTime")
             self.stdout.write("")
-            self.stdout.write("Comprobacion de zona horaria:")
-            self.stdout.write(f"  AttendanceUtcTime  = {utc} ({lector_directo.unidad(utc)})")
-            self.stdout.write(f"  AttendanceDateTime = {local} ({lector_directo.unidad(local)})")
-            if not utc:
-                self.stdout.write(
-                    "  AttendanceUtcTime viene en 0: SmartPSS la deja asi al subir "
-                    "historial. La hora se toma de AttendanceDateTime."
-                )
-            elif local:
-                diferencia = (
-                    lector_directo.a_segundos(utc) - lector_directo.a_segundos(local)
-                )
-                horas = diferencia / 3600
-                if diferencia == 21600:
-                    self.stdout.write(self.style.SUCCESS(
-                        f"  Diferencia {horas:g} h: correcto, el reloj esta en UTC-6"
-                    ))
-                else:
-                    self.stdout.write(self.style.WARNING(
-                        f"  Diferencia {horas:g} h: se esperaban 6. "
-                        "Revise la zona horaria del reloj antes de seguir"
-                    ))
+            self.stdout.write(
+                "Compare estas horas con el informe de registro de SmartPSS: tienen que "
+                "coincidir al segundo. Si estan corridas, la hora no se esta leyendo bien."
+            )
 
         self.stdout.write("")
         self.stdout.write("Para las variables del servicio:")

@@ -46,22 +46,23 @@ INSERT INTO {TABLA} (
 
 
 def escribir_marca(person_id: str, fecha: date, hora: time, **extra):
-    """Como escribiria SmartPSS: AttendanceDateTime es la hora local como epoch.
+    """Como escribe SmartPSS, comprobado contra su informe impreso.
 
-    La unidad de AttendanceUtcTime cambia segun la instalacion de SmartPSS: unas
-    escriben milisegundos y otras segundos. Por eso se puede elegir con
-    unidad="s", que es lo que manda el reloj del comedor. Con unidad="cero" se
-    escribe como SmartPSS sube el historial: AttendanceUtcTime en 0.
+    AttendanceDateTime es la hora UTC real en milisegundos. AttendanceUtcTime
+    vale 6 horas mas que eso y el sistema no la usa; aqui se puede variar para
+    comprobar que no influye: unidad="s" en segundos (lo que manda la instalacion
+    real), "ms" en milisegundos, o "cero" como cuando SmartPSS sube historial.
     """
     utc_ms = utc_ms_de(fecha, hora)
-    unidad = extra.get("unidad", "ms")
-    utc = {"ms": utc_ms, "s": utc_ms // 1000, "cero": 0}[unidad]
+    corrida = utc_ms + 6 * 3600 * 1000
+    unidad = extra.get("unidad", "s")
+    utc = {"ms": corrida, "s": corrida // 1000, "cero": 0}[unidad]
     with connection.cursor() as cursor:
         cursor.execute(INSERTAR, [
             person_id,
             extra.get("nombre", "Maria Rodriguez"),
             "",
-            utc_ms - 6 * 3600 * 1000,   # local disfrazada de epoch: 6 horas menos
+            utc_ms,
             0,
             extra.get("metodo", 3),
             "192.168.1.201",
@@ -214,24 +215,50 @@ def test_el_comando_avisa_si_no_hay_tabla_configurada(db, maria):
 
 
 # --------------------------------------------------------------------------
-# AttendanceUtcTime en 0: como SmartPSS sube el historial
+# De donde sale la hora: AttendanceDateTime es UTC real
 # --------------------------------------------------------------------------
 
 
-def test_la_hora_local_de_smartpss_se_convierte_bien_con_un_valor_real():
-    """Valores de la primera marca real: las dos columnas tienen que coincidir."""
-    assert lector_directo.local_ms_a_utc_ms(1789161884000) == 1789183484000
-    assert lector_directo.utc_ms_a_local_ms(1789183484000) == 1789161884000
+def test_la_hora_coincide_con_el_informe_impreso_de_smartpss():
+    """Benjamin Quiros, 15/09/2026. Informe de SmartPSS contra la tabla, al segundo."""
+    from datetime import datetime, timezone
+
+    from apps.core.tiempo import CR
+
+    informe = {
+        1789472726000: "2026-09-15 05:45:26",
+        1789502715000: "2026-09-15 14:05:15",
+        1789511406000: "2026-09-15 16:30:06",
+        1789525560000: "2026-09-15 20:26:00",
+    }
+    for valor, esperado in informe.items():
+        # AttendanceUtcTime de la misma fila: 6 horas mas, en segundos, o 0.
+        for utc in (valor // 1000 + 21600, 0):
+            ms = lector_directo.utc_ms_de_la_fila(
+                {"AttendanceDateTime": valor, "AttendanceUtcTime": utc}
+            )
+            hora = datetime.fromtimestamp(ms / 1000, tz=timezone.utc).astimezone(CR)
+            assert hora.strftime("%Y-%m-%d %H:%M:%S") == esperado
 
 
 @pytest.mark.django_db
-def test_una_marca_con_utc_en_cero_toma_la_hora_de_attendance_datetime(tabla_smartpss, maria):
-    """2.917 de las primeras 3.218 marcas reales llegaron asi y se perdian."""
-    escribir_marca("1024", LUNES, time(8, 0), unidad="cero")
+@pytest.mark.parametrize("unidad", ["s", "ms", "cero"])
+def test_attendance_utc_time_no_cambia_la_hora(tabla_smartpss, maria, unidad):
+    """Venga como venga AttendanceUtcTime, la hora sale de AttendanceDateTime."""
+    escribir_marca("1024", LUNES, time(16, 30), unidad=unidad)
     call_command("leer_smartpss", tabla=TABLA, verbosity=0)
     marca = MarcaReloj.objects.get()
     assert marca.fecha_local == LUNES
-    assert marca.hora_local.strftime("%H:%M") == "08:00"
+    assert marca.hora_local.strftime("%H:%M") == "16:30"
+
+
+@pytest.mark.django_db
+def test_las_marcas_de_la_noche_no_se_pasan_al_dia_siguiente(tabla_smartpss, maria):
+    """Con las 6 horas de mas, la salida de las 20:26 caia al otro dia."""
+    for hora in (time(5, 45), time(14, 5), time(16, 30), time(20, 26)):
+        escribir_marca("1024", LUNES, hora, unidad="cero")
+    call_command("leer_smartpss", tabla=TABLA, verbosity=0)
+    assert set(MarcaReloj.objects.values_list("fecha_local", flat=True)) == {LUNES}
 
 
 @pytest.mark.django_db
@@ -247,18 +274,6 @@ def test_un_dia_con_marcas_mezcladas_se_calcula_completo(tabla_smartpss, maria):
     resultado = ResultadoDiario.objects.get(empleado=maria, fecha=LUNES)
     assert resultado.estado == "OK"
     assert resultado.minutos_ordinarios == 468
-
-
-@pytest.mark.django_db
-def test_la_misma_marca_con_y_sin_utc_no_se_duplica(tabla_smartpss, maria):
-    """Derivar la hora de una u otra columna tiene que dar la misma llave."""
-    from apps.marcas.servicio import ingestar
-
-    fila = {"PersonID": "1024", "AttendanceDateTime": utc_ms_de(LUNES, time(8, 0)) - 6 * 3600 * 1000,
-            "AttendanceUtcTime": 0, "DeviceIPAddress": "X"}
-    con_utc = dict(fila, AttendanceUtcTime=utc_ms_de(LUNES, time(8, 0)))
-    ingestar([lector_directo.traducir(fila), lector_directo.traducir(con_utc)])
-    assert MarcaReloj.objects.count() == 1
 
 
 @pytest.mark.django_db
