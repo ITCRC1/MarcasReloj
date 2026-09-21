@@ -12,12 +12,13 @@ leer). Las horas de marca van en hora de Costa Rica "HH:MM" y en ISO 8601 con
 zona, para que no haya que adivinar la zona horaria del otro lado.
 """
 
+import csv
 import hmac
 from datetime import date
 from functools import wraps
 
 from django.conf import settings
-from django.http import JsonResponse
+from django.http import HttpResponse, JsonResponse
 from django.urls import path
 from django.views.decorators.http import require_GET
 
@@ -175,6 +176,61 @@ def resumen(request):
 
 @require_GET
 @con_clave
+def horas(request):
+    """Una fila por empleado y por dia, con la fecha y el total trabajado.
+
+    Es la consulta mas directa para cargar planilla: no hay nada anidado que
+    recorrer. Con formato=csv sale como archivo, para los sistemas que importan
+    un archivo en vez de leer JSON.
+    """
+    rango = _rango(request)
+    if isinstance(rango, JsonResponse):
+        return rango
+    desde, hasta = rango
+
+    filas = [
+        {
+            "codigo_planilla": p.codigo or None,
+            "person_id": p.person_id,
+            "nombre": p.nombre,
+            "fecha": d.fecha.isoformat(),
+            "minutos": d.minutos,
+            "horas": formato_hm(d.minutos),
+            "completo": d.completo,
+            "observacion": d.observacion or None,
+        }
+        for p in _personas(request, desde, hasta)
+        for d in p.dias
+    ]
+    filas.sort(key=lambda f: (f["nombre"], f["fecha"]))
+
+    if request.GET.get("formato") == "csv":
+        return _csv(filas, f"horas-{desde}-{hasta}")
+
+    return JsonResponse({
+        "desde": desde.isoformat(),
+        "hasta": hasta.isoformat(),
+        "filas": filas,
+    }, json_dumps_params={"ensure_ascii": False})
+
+
+def _csv(filas: list[dict], nombre: str) -> HttpResponse:
+    """CSV con punto y coma y BOM: asi Excel en espanol lo abre en columnas."""
+    respuesta = HttpResponse(content_type="text/csv; charset=utf-8")
+    respuesta["Content-Disposition"] = f'attachment; filename="{nombre}.csv"'
+    respuesta.write("﻿")
+    columnas = ["codigo_planilla", "person_id", "nombre", "fecha", "minutos", "horas", "completo"]
+    escritor = csv.DictWriter(
+        respuesta, fieldnames=columnas, extrasaction="ignore", delimiter=";", lineterminator="\r\n"
+    )
+    escritor.writeheader()
+    for fila in filas:
+        escritor.writerow({**fila, "completo": "si" if fila["completo"] else "no"})
+    return respuesta
+
+
+@require_GET
+@con_clave
 def marcas(request):
     """Las marcas del reloj tal como llegaron, para auditar o conciliar."""
     rango = _rango(request)
@@ -210,6 +266,7 @@ def marcas(request):
 
 
 urlpatterns = [
+    path("horas", horas, name="api_horas"),
     path("asistencia", asistencia, name="api_asistencia"),
     path("resumen", resumen, name="api_resumen"),
     path("marcas", marcas, name="api_marcas"),

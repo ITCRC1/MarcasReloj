@@ -161,3 +161,61 @@ def test_los_acentos_salen_legibles(api, db):
     marcar("185", "DELGADO MUÑOZ MARBETH SAMANTHA", MARTES, time(6, 0))
     r = api("resumen", RANGO)
     assert "MUÑOZ" in r.content.decode("utf-8")
+
+
+# --------------------------------------------------------------------------
+# Horas por dia, que es lo que carga planilla
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_horas_una_fila_por_empleado_y_dia(api, con_marcas):
+    datos = api("horas", RANGO).json()
+    por_id = {f["person_id"]: f for f in datos["filas"]}
+
+    assert por_id["14"]["fecha"] == "2026-09-15"
+    assert por_id["14"]["codigo_planilla"] == "14"
+    assert por_id["14"]["minutos"] == 736
+    assert por_id["14"]["horas"] == "12:16"
+    assert por_id["14"]["completo"] is True
+
+    assert por_id["16"]["minutos"] == 0
+    assert por_id["16"]["completo"] is False
+    assert "Falta la salida" in por_id["16"]["observacion"]
+
+
+@pytest.mark.django_db
+def test_horas_trae_un_dia_por_fecha_del_rango(api, db):
+    for dia in (15, 16, 17):
+        marcar("14", "BENJAMIN QUIROS MORA", date(2026, 9, dia), time(6, 0), time(14, 0))
+    datos = api("horas", {"desde": "2026-09-15", "hasta": "2026-09-17"}).json()
+    assert [(f["fecha"], f["minutos"]) for f in datos["filas"]] == [
+        ("2026-09-15", 480), ("2026-09-16", 480), ("2026-09-17", 480),
+    ]
+
+
+@pytest.mark.django_db
+def test_horas_en_csv_para_importar(api, con_marcas):
+    r = api("horas", {**RANGO, "formato": "csv"})
+    assert r["Content-Type"].startswith("text/csv")
+    assert "horas-2026-09-15" in r["Content-Disposition"]
+    texto = r.content.decode("utf-8-sig")
+    lineas = texto.strip().splitlines()
+    assert lineas[0] == "codigo_planilla;person_id;nombre;fecha;minutos;horas;completo"
+    assert "14;14;BENJAMIN QUIROS MORA;2026-09-15;736;12:16;si" in texto
+    assert "16;16;BRAYAN JORGE SOLANO GUIDO;2026-09-15;0;0:00;no" in texto
+
+
+@pytest.mark.django_db
+def test_horas_cuadra_con_el_total_del_resumen(api, con_marcas):
+    filas = api("horas", RANGO).json()["filas"]
+    resumen = api("resumen", RANGO).json()["personas"]
+    suma = {}
+    for f in filas:
+        suma[f["person_id"]] = suma.get(f["person_id"], 0) + f["minutos"]
+    assert suma == {p["person_id"]: p["total_trabajado"]["minutos"] for p in resumen}
+
+
+@pytest.mark.django_db
+def test_horas_pide_clave(api):
+    assert api("horas", RANGO, clave=None).status_code == 401

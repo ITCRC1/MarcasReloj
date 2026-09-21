@@ -43,6 +43,58 @@ $b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create
 - `trabajado` suma solo tramos completos. Un día con `"completo": false` tiene
   una entrada sin salida y **no debe pagarse sin revisar**.
 
+## `GET /horas` — una fila por empleado y por día
+
+La consulta más directa para cargar planilla: fecha y total, sin nada anidado.
+
+```
+GET /api/v1/horas?desde=2026-09-15&hasta=2026-09-20
+```
+
+```json
+{
+  "desde": "2026-09-15",
+  "hasta": "2026-09-20",
+  "filas": [
+    {
+      "codigo_planilla": "14",
+      "person_id": "14",
+      "nombre": "BENJAMIN QUIROS MORA",
+      "fecha": "2026-09-15",
+      "minutos": 736,
+      "horas": "12:16",
+      "completo": true,
+      "observacion": null
+    },
+    {
+      "codigo_planilla": "16",
+      "person_id": "16",
+      "nombre": "BRAYAN JORGE SOLANO GUIDO",
+      "fecha": "2026-09-19",
+      "minutos": 0,
+      "horas": "0:00",
+      "completo": false,
+      "observacion": "Falta la salida de las 19:05"
+    }
+  ]
+}
+```
+
+Solo salen los días con marcas: un día sin marcas no aparece.
+
+Agregando `formato=csv` devuelve el mismo contenido como archivo, separado por
+punto y coma y con BOM, para abrirlo o importarlo en Excel sin configurar nada:
+
+```
+GET /api/v1/horas?desde=2026-09-15&hasta=2026-09-20&formato=csv
+```
+
+```
+codigo_planilla;person_id;nombre;fecha;minutos;horas;completo
+14;14;BENJAMIN QUIROS MORA;2026-09-15;736;12:16;si
+16;16;BRAYAN JORGE SOLANO GUIDO;2026-09-19;0;0:00;no
+```
+
 ## `GET /resumen` — totales por persona
 
 Lo más directo para cargar la planilla.
