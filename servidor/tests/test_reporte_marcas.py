@@ -216,3 +216,24 @@ def test_el_mensaje_delata_una_hora_mal_escrita(cliente, con_marcas):
     assert "02:00" in mensaje
     assert "cuenta como entrada" in mensaje
     assert "3:49" in mensaje
+
+
+# --------------------------------------------------------------------------
+# El sistema se usa por el reporte y por la API, no pantalla por pantalla
+# --------------------------------------------------------------------------
+
+
+@pytest.mark.django_db
+def test_la_raiz_lleva_al_reporte(cliente):
+    r = cliente.get("/")
+    assert r.status_code == 302
+    assert r["Location"] == "/reportes/"
+
+
+@pytest.mark.django_db
+def test_el_menu_solo_ofrece_el_reporte(cliente, con_marcas):
+    html = cliente.get("/reportes/").content.decode()
+    menu = html.split("</nav>")[0]
+    assert "Reporte" in menu
+    for seccion in ("Tablero", "Empleados", "Horarios", "Feriados"):
+        assert seccion not in menu

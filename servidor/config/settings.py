@@ -254,7 +254,7 @@ STORAGES = {
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 LOGIN_URL = "core:entrar"
-LOGIN_REDIRECT_URL = "core:tablero"
+LOGIN_REDIRECT_URL = "reportes:marcas"
 LOGOUT_REDIRECT_URL = "core:entrar"
 
 MESSAGE_STORAGE = "django.contrib.messages.storage.session.SessionStorage"

@@ -1,12 +1,15 @@
 from django.contrib.auth import views as auth_views
 from django.urls import path
+from django.views.generic import RedirectView
 
 from apps.core import views
 
 app_name = "core"
 
 urlpatterns = [
-    path("", views.tablero, name="tablero"),
+    # La raiz lleva al reporte, que es la unica pantalla del sistema.
+    path("", RedirectView.as_view(pattern_name="reportes:marcas"), name="inicio"),
+    path("tablero/", views.tablero, name="tablero"),
     path(
         "entrar/",
         auth_views.LoginView.as_view(template_name="core/entrar.html"),
