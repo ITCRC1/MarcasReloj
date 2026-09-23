@@ -25,3 +25,4 @@ agente/agente.log*
 
 # Claves que se anotan de paso para copiarlas. Nunca se suben.
 clave-admin.txt
+api-token.txt
