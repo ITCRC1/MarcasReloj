@@ -22,3 +22,6 @@ agente/agente.log*
 # Editores
 .vscode/
 .idea/
+
+# Claves que se anotan de paso para copiarlas. Nunca se suben.
+clave-admin.txt
